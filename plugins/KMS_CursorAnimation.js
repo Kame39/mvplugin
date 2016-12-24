@@ -1,11 +1,11 @@
 //=============================================================================
 // KMS_CursorAnimation.js
-//  last update: 2016/07/09
+//  last update: 2016/12/24
 //=============================================================================
 
 /*:
  * @plugindesc
- * [v0.2.0] Display an animation on the location of the cursor.
+ * [v0.3.0] Display an animation on the location of the cursor.
  * 
  * @author TOMY (Kamesoft)
  *
@@ -26,7 +26,7 @@
 
 /*:ja
  * @plugindesc
- * [v0.2.0] カーソルの位置にアニメーションを表示します。
+ * [v0.3.0] カーソルの位置にアニメーションを表示します。
  * 
  * @author TOMY (Kamesoft)
  *
@@ -54,6 +54,8 @@ var KMS = KMS || {};
 
 KMS.imported = KMS.imported || {};
 KMS.imported['CursorAnimation'] = true;
+
+var PixiVersion = PIXI.mesh ? 4 : 2;
 
 var pluginParams = PluginManager.parameters('KMS_CursorAnimation');
 var Params = {};
@@ -125,8 +127,21 @@ Sprite_AnimationCursorParticle.prototype.setupBitmap = function()
     {
         this._ropePoints.push(new PIXI.Point(i * 8, 0));
     }
-    this._rope = new PIXI.Rope(this._lineBitmap, this._ropePoints);
-    this._rope.blendMode = PIXI.blendModes.ADD;
+
+    if (PixiVersion == 2)
+    {
+        this._rope = new PIXI.Rope(this._lineBitmap, this._ropePoints);
+        this._rope.blendMode = PIXI.blendModes.ADD;
+    }
+    else
+    {
+        // For Pixi v4
+        this._rope = new PIXI.mesh.Rope(
+            new PIXI.Texture.fromCanvas(this._lineBitmap._canvas),
+            this._ropePoints);
+        this._rope.blendMode = PIXI.BLEND_MODES.ADD;
+    }
+
     this.addChild(this._rope);
 };
 
