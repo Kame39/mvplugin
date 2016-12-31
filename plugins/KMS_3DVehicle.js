@@ -1,6 +1,6 @@
 //=============================================================================
 // KMS_3DVehicle.js
-//   Last update : 2016/01/19
+//   Last update : 2017/01/01
 //=============================================================================
 
 /*
@@ -15,7 +15,7 @@
 
 /*:
  * @plugindesc
- * [v0.1.0α] Display 3D map when getting on the airplane.
+ * [v0.2.0α] Display 3D map when getting on the airplane.
  * 
  * @author TOMY (Kamesoft)
  *
@@ -58,7 +58,7 @@
 
 /*:ja
  * @plugindesc
- * [v0.1.0α] 飛空艇搭乗時のマップを 3D 化します。
+ * [v0.2.0α] 飛空艇搭乗時のマップを 3D 化します。
  * 
  * @author TOMY (Kamesoft)
  *
@@ -72,7 +72,7 @@
  *
  * @param Plane whirl speed
  * @default 0.0349
- * @desc 飛空艇の旋回速度です。1 フレームあたりの回転角度をラジアンです。
+ * @desc 飛空艇の旋回速度です。1 フレームあたりの回転角度をラジアン単位で指定します。
  *
  * @param Plane tilt angle
  * @default 0.314
@@ -112,6 +112,8 @@ if (!Graphics.hasWebGL())
 
 KMS.imported = KMS.imported || {};
 KMS.imported['3DVehicle'] = true;
+
+var PixiVersion = PIXI.TwistFilter ? 2 : 4;
 
 var PluginName = 'KMS_3DVehicle';
 
@@ -838,36 +840,46 @@ var snapForTileTexture = function(stage, width, height)
 {
     var bitmap = new Bitmap(width, height);
     var context = bitmap._context;
-    var renderTexture = new PIXI.RenderTexture(width, height);
+    var renderTexture = new PIXI.RenderTexture.create(width, height);
 
     if (stage)
     {
         consoleTimeBegin('render@snap');
-        renderTexture.render(stage);
+        Graphics._renderer.render(stage, renderTexture);
         stage.worldTransform.identity();
         consoleTimeEnd('render@snap');
     }
 
-    if (Graphics.isWebGL())
+    if (PixiVersion === 2)
     {
-        var gl = renderTexture.renderer.gl;
-        var webGLPixels = new Uint8Array(4 * width * height);
+        if (Graphics.isWebGL())
+        {
+            var gl = renderTexture.renderer.gl;
+            var webGLPixels = new Uint8Array(4 * width * height);
 
-        consoleTimeBegin('read@snap');
-        gl.bindFramebuffer(gl.FRAMEBUFFER, renderTexture.textureBuffer.frameBuffer);
-        gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, webGLPixels);
-        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-        consoleTimeEnd('read@snap');
+            consoleTimeBegin('read@snap');
+            gl.bindFramebuffer(gl.FRAMEBUFFER, renderTexture.textureBuffer.frameBuffer);
+            gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, webGLPixels);
+            gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+            consoleTimeEnd('read@snap');
 
-        consoleTimeBegin('copy@snap');
-        var canvasData = context.getImageData(0, 0, width, height);
-        canvasData.data.set(webGLPixels);
-        context.putImageData(canvasData, 0, 0);
-        consoleTimeEnd('copy@snap');
+            consoleTimeBegin('copy@snap');
+            var canvasData = context.getImageData(0, 0, width, height);
+            canvasData.data.set(webGLPixels);
+            context.putImageData(canvasData, 0, 0);
+            consoleTimeEnd('copy@snap');
+        }
+        else
+        {
+            context.drawImage(renderTexture.textureBuffer.canvas, 0, 0);
+        }
     }
     else
     {
-        context.drawImage(renderTexture.textureBuffer.canvas, 0, 0);
+        var canvas = Graphics.isWebGL() ?
+            Graphics._renderer.extract.canvas(renderTexture) :
+            renderTexture.baseTexture._canvasRenderTarget.canvas;
+        context.drawImage(canvas, 0, 0);
     }
 
     bitmap._setDirty();
@@ -1032,7 +1044,16 @@ Game_3DMap.prototype.clear = function()
  */
 Game_3DMap.prototype.render3d = function()
 {
-    this._texture3d.baseTexture.dirty();
+    if (PixiVersion === 2)
+    {
+        this._texture3d.baseTexture.dirty();
+    }
+    else
+    {
+        // For Pixi v4
+        this._texture3d.update();
+    }
+
     this._canvas3d.render(this._scene3d, this._camera);
 };
 
