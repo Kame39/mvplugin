@@ -1,6 +1,6 @@
 //=============================================================================
 // KMS_SplashEncount.js
-//   Last update : 2015/11/26
+//   Last update : 2017/01/01
 //=============================================================================
 
 /*
@@ -15,7 +15,7 @@
 
 /*:
  * @plugindesc
- * [v0.1.1] Applies splash encounter effect.
+ * [v0.2.0] Applies splash encounter effect.
  * 
  * @author TOMY (Kamesoft)
  *
@@ -42,7 +42,7 @@
 
 /*:ja
  * @plugindesc
- * [v0.1.1] エンカウント時に画面が割れるエフェクトを適用します。
+ * [v0.2.0] エンカウント時に画面が割れるエフェクトを適用します。
  * 
  * @author TOMY (Kamesoft)
  *
@@ -67,8 +67,15 @@
  * @help このプラグインには、プラグインコマンドはありません。
  */
 
+var KMS = KMS || {};
+
 (function()
 {
+
+KMS.imported = KMS.imported || {};
+KMS.imported['SplashEncount'] = true;
+
+var PixiVersion = PIXI.TwistFilter ? 2 : 4;
 
 var PluginName = 'KMS_SplashEncount';
 
@@ -188,7 +195,7 @@ Game_SplashScreen.prototype.createSplashEffect = function(stage, duration)
     this._splashTexture = new THREE.Texture(bitmap.canvas);
     this._splashTexture.needsUpdate = true;
     this._splashMaterial = new THREE.MeshBasicMaterial({ map: this._splashTexture, side: THREE.DoubleSide });
-    this._splashMaterial.transparent = true;
+    //this._splashMaterial.transparent = true;
 
     this._splashObjs = this.createSplashMeshes(
         this._splashMaterial,
@@ -328,7 +335,16 @@ Game_SplashScreen.prototype.updateObjects = function()
 
 Game_SplashScreen.prototype.render3d = function()
 {
-    this._texture3d.baseTexture.dirty();
+    if (PixiVersion === 2)
+    {
+        this._texture3d.baseTexture.dirty();
+    }
+    else
+    {
+        // For Pixi v4
+        this._texture3d.update();
+    }
+
     this._canvas3d.render(this._scene3d, this._camera);
 };
 
@@ -362,6 +378,7 @@ Scene_Map.prototype.applySplashEncounterEffect = function()
 {
     var splash = new Game_SplashScreen();
     splash.createSplashEffect(this, 160);
+    splash.render3d();
 
     $gameTemp.splashScreen = splash;
     this.addChild(splash);
@@ -393,13 +410,15 @@ Scene_Map.prototype.updateEncounterEffect = function()
         this.startFadeOut(1);
         this.updateFade();
     }
+    else
+    {
+        $gameTemp.splashScreen.render3d();
+    }
 
     if (n === Math.floor(speed / 2))
     {
         BattleManager.playBattleBgm();
     }
-
-    $gameTemp.splashScreen.render3d();
 };
 
 Scene_Map.prototype.encounterEffectSpeed = function()

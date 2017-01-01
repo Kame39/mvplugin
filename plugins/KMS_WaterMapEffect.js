@@ -1,6 +1,6 @@
 //=============================================================================
 // KMS_WaterMapEffect.js
-//  last update: 2015/11/25
+//  last update: 2016/12/23
 //=============================================================================
 
 /*
@@ -9,7 +9,7 @@
 
 /*:
  * @plugindesc
- * [v0.1.1] Applies water effect.
+ * [v1.0.0] Applies water effect.
  * 
  * @author TOMY (Kamesoft)
  * 
@@ -26,7 +26,7 @@
  * @desc The image which is used for wave.
  *
  * @param Wave opacity
- * @default 176
+ * @default 64
  * @desc Opacity for wave. Range is from 0 to 255.
  *
  * @param Speed X
@@ -48,7 +48,7 @@
 
 /*:ja
  * @plugindesc
- * [v0.1.1] マップに水中エフェクトを適用します。
+ * [v1.0.0] マップに水中エフェクトを適用します。
  *  
  * @author TOMY (Kamesoft)
  * 
@@ -65,7 +65,7 @@
  * @desc 水面の波を表現するための画像です。
  *
  * @param Wave opacity
- * @default 176
+ * @default 64
  * @desc 波の不透明度です。0 ～ 255 で指定します。
  *
  * @param Speed X
@@ -94,6 +94,8 @@ if (!Graphics.hasWebGL())
     return;
 }
 
+var PixiVersion = PIXI.DisplacementFilter ? 2 : 4;
+
 var pluginParams = PluginManager.parameters('KMS_WaterMapEffect');
 var Param = {};
 Param.imageDir  = pluginParams['Image folder'] || 'img/system/';
@@ -113,15 +115,35 @@ Param.filterMode = 0;
 KMS_WaterEffect = function()
 {
     this._speed = { x: Param.speed.x, y: Param.speed.y };
-    this._colorFilter = new PIXI.ColorMatrixFilter();
+    this._colorFilter = (PixiVersion == 2) ?
+        new PIXI.ColorMatrixFilter() :
+        new PIXI.filters.ColorMatrixFilter();
     if (Param.autoTone)
     {
-        this._colorFilter.matrix = [
-            0.9, 0, 0, 0,
-            0, 0.9, 0, 0,
-            0.2, 0.2, 1, 0,
-            0, 0, 0, 1
-        ];
+        if (PixiVersion == 2)
+        {
+            this._colorFilter.matrix = [
+                0.9, 0, 0, 0,
+                0, 0.9, 0, 0,
+                0.2, 0.2, 1, 0,
+                0, 0, 0, 1
+            ];
+        }
+        else
+        {
+            // For Pixi v4
+            this._colorFilter.matrix = [
+                0.9, 0, 0, 0, 0,
+                0, 0.9, 0, 0, 0,
+                0.2, 0.2, 1, 0, 0,
+                0, 0, 0, 1, 0
+            ];
+        }
+    }
+
+    if (PixiVersion == 4)
+    {
+        this._dispSprite = new Sprite();
     }
 
     this._waveSprite = new TilingSprite();
@@ -129,7 +151,9 @@ KMS_WaterEffect = function()
     this._waveSprite.opacity = Param.waveOpacity;
     this._waveSprite.scale.x = 1.0;
     this._waveSprite.scale.y = 1.0;
-    this._waveSprite.move(0, 0, Graphics.width, Graphics.height);
+
+    var margin = 24;
+    this._waveSprite.move(-margin, -margin, Graphics.width + margin, Graphics.height + margin);
 };
 
 /*
@@ -163,7 +187,20 @@ KMS_WaterEffect.prototype.createEffect = function()
 
     console.assert(this.isReady());
 
-    this._dispFilter = new PIXI.DisplacementFilter(this._dispBitmap);
+    if (PixiVersion == 2)
+    {
+        this._dispFilter = new PIXI.DisplacementFilter(this._dispBitmap);
+    }
+    else
+    {
+        // For Pixi v4
+        // Pixi v4 の DisplacementFilter では自動でリピートされないので、WRAP_MODE 指定が必要。
+        this._dispBitmap.baseTexture.wrapMode = PIXI.WRAP_MODES.REPEAT;
+        this._dispSprite.bitmap = this._dispBitmap;
+        this._dispSprite.scale.x = Graphics.width / this._dispBitmap.width;
+        this._dispSprite.scale.y = Graphics.height / this._dispBitmap.height;
+        this._dispFilter = new PIXI.filters.DisplacementFilter(this._dispSprite);
+    }
 
     this._waveSprite.bitmap = this._waveBitmap;
     this._waveSprite.filters = [this._dispFilter];
@@ -171,8 +208,17 @@ KMS_WaterEffect.prototype.createEffect = function()
 
 KMS_WaterEffect.prototype.update = function()
 {
-    this._dispFilter.offset.x += this._speed.x;
-    this._dispFilter.offset.y += this._speed.y;
+    if (PixiVersion == 2)
+    {
+        this._dispFilter.offset.x += this._speed.x;
+        this._dispFilter.offset.y += this._speed.y;
+    }
+    else
+    {
+        // For Pixi v4
+        this._dispSprite.x += this._speed.x;
+        this._dispSprite.y += this._speed.y;
+    }
     this._waveSprite.origin.x += this._speed.x / 2.0;
     this._waveSprite.origin.y += this._speed.y / 2.0;
 };
@@ -180,7 +226,16 @@ KMS_WaterEffect.prototype.update = function()
 Object.defineProperty(KMS_WaterEffect.prototype, 'filters', {
     get: function()
     {
-        return [this._dispFilter, this._colorFilter];
+        return Param.autoTone ?
+            [this._dispFilter, this._colorFilter] :
+            [this._dispFilter];
+    }
+});
+
+Object.defineProperty(KMS_WaterEffect.prototype, 'dispSprite', {
+    get: function()
+    {
+        return this._dispSprite;
     }
 });
 
@@ -232,14 +287,18 @@ Spriteset_Base.prototype.applyWaterMapEffectBody = function(target, waveContaine
 
             // フィルタの適用範囲 (指定しないとキャプチャできなくなる)
             var margin = 48;
-            var width  = Graphics.width;
-            var height = Graphics.height;
+            var width  = Graphics.width + margin;
+            var height = Graphics.height + margin;
             target[i].filterArea = new Rectangle(-margin, -margin, width, height);
         }
     }
 
     if (waveContainer)
     {
+        if (PixiVersion == 4)
+        {
+            waveContainer.addChild(this._waterEffect.dispSprite);
+        }
         waveContainer.addChild(this._waterEffect.waveSprite);
     }
 };

@@ -1,11 +1,11 @@
 //=============================================================================
 // KMS_ExtendStatusScene.js
-//  last update: 2016/01/01
+//  last update: 2016/12/24
 //=============================================================================
 
 /*:
  * @plugindesc
- * [v0.1.0] Extends status scene.
+ * [v0.2.0] Extends status scene.
  *
  * @author TOMY (Kamesoft)
  *
@@ -54,7 +54,7 @@
 
 /*:ja
  * @plugindesc
- * [v0.1.0] ステータス画面の表示内容を拡張します。
+ * [v0.2.0] ステータス画面の表示内容を拡張します。
  *
  * @author TOMY (Kamesoft)
  *
@@ -356,7 +356,6 @@ Window_Status.prototype.createChartSprites = function()
     this._elementChartSprite.blendMode = Graphics.BLEND_ADD;
     this._elementChartSprite.opacity = 0;
     this._elementChartSprite.visible = false;
-    this.addChild(this._elementChartSprite);
     this._chartSprites.push(this._elementChartSprite);
 
     this._stateChartSprite = new Sprite();
@@ -365,7 +364,6 @@ Window_Status.prototype.createChartSprites = function()
     this._stateChartSprite.blendMode = Graphics.BLEND_ADD;
     this._stateChartSprite.opacity = 0;
     this._stateChartSprite.visible = false;
-    this.addChild(this._stateChartSprite);
     this._chartSprites.push(this._stateChartSprite);
 };
 
@@ -535,11 +533,6 @@ Window_Status.prototype.drawResistanceChart = function(paramFunc, idList, sprite
         Params.chartColor.base,
         1);
 
-    var pageWidth = this.contentsWidth() / this.getPageCount();
-    sprite.x = chartPosition.x % pageWidth + this.standardPadding();
-    sprite.y = chartPosition.y + this.standardPadding();
-    sprite.bitmap = new Bitmap(radius * 2, radius * 2);
-
     // 多角形の座標を計算しつつ、残りの枠線を描画
     var points = [];
     idList.forEach(function(id, index)
@@ -571,6 +564,11 @@ Window_Status.prototype.drawResistanceChart = function(paramFunc, idList, sprite
     this.contents.drawPolygonKms(points, Params.chartColor.line, 2);
 
     // 座標をスプライト仕様に調整してチャート内部を描画
+    var pageWidth = this.contentsWidth() / this.getPageCount();
+    sprite.x = chartPosition.x % pageWidth + this.standardPadding();
+    sprite.y = chartPosition.y + this.standardPadding();
+    sprite.bitmap = new Bitmap(radius * 2, radius * 2);
+
     points.forEach(function(point)
     {
         point.x -= chartPosition.x - radius;
@@ -668,9 +666,32 @@ Window_Status.prototype.updateChartSprites = function()
     this._chartDuration = (this._chartDuration + 1) % 60;
 };
 
+/*
+ * 耐性チャートスプライトを取得
+ */
+Object.defineProperty(Window_Status.prototype, 'chartSprites',
+{
+    get: function()
+    {
+        return this._chartSprites;
+    },
+    configurable: true
+});
+
 
 //-----------------------------------------------------------------------------
 // Scene_Status
+
+var _KMS_ExtendStatusScene_create = Scene_Status.prototype.create;
+Scene_Status.prototype.create = function()
+{
+    _KMS_ExtendStatusScene_create.call(this);
+
+    this._statusWindow.chartSprites.forEach(function(sprite)
+    {
+        this.addChild(sprite);
+    }, this);
+};
 
 var _KMS_ExtendStatusScene_update = Scene_Status.prototype.update;
 Scene_Status.prototype.update = function()
