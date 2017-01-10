@@ -1,16 +1,19 @@
 //=============================================================================
 // KMS_AltGauge.js
-//  last update: 2015/11/25
+//  last update: 2017/01/14
 //=============================================================================
 
 /*:
  * @plugindesc
- * [v0.1] Display alternative gauge.
+ * [v0.2.0] Display alternative gauge.
  * 
  * @author TOMY (Kamesoft)
  *
  * @param HP gauge image
  * @default GaugeHP
+ * @require 1
+ * @dir img/system/
+ * @type file
  * @desc HP gauge image. Load from 'img/system'.
  *
  * @param HP gauge config
@@ -21,6 +24,9 @@
  *
  * @param MP gauge image
  * @default GaugeMP
+ * @require 1
+ * @dir img/system/
+ * @type file
  * @desc MP gauge image. Load from 'img/system'.
  *
  * @param MP gauge config
@@ -31,6 +37,9 @@
  *
  * @param TP gauge image
  * @default GaugeTP
+ * @require 1
+ * @dir img/system/
+ * @type file
  * @desc TP gauge image. Load from 'img/system'.
  *
  * @param TP gauge config
@@ -41,6 +50,9 @@
  *
  * @param EXP gauge image
  * @default GaugeEXP
+ * @require 1
+ * @dir img/system/
+ * @type file
  * @desc EXP gauge image. Load from 'img/system'.
  *
  * @param EXP gauge config
@@ -58,12 +70,15 @@
 
 /*:ja
  * @plugindesc
- * [v0.1.0] 画像を使用した汎用のゲージです。
+ * [v0.2.0] 画像を使用した汎用のゲージです。
  *
  * @author TOMY (Kamesoft)
  *
  * @param HP gauge image
  * @default GaugeHP
+ * @require 1
+ * @dir img/system/
+ * @type file
  * @desc HP ゲージ画像です。'img/system' から読み込みます。
  *
  * @param HP gauge config
@@ -74,6 +89,9 @@
  *
  * @param MP gauge image
  * @default GaugeMP
+ * @require 1
+ * @dir img/system/
+ * @type file
  * @desc MP ゲージ画像です。'img/system' から読み込みます。
  *
  * @param MP gauge config
@@ -84,6 +102,9 @@
  *
  * @param TP gauge image
  * @default GaugeTP
+ * @require 1
+ * @dir img/system/
+ * @type file
  * @desc TP ゲージ画像です。'img/system' から読み込みます。
  *
  * @param TP gauge config
@@ -94,6 +115,9 @@
  *
  * @param EXP gauge image
  * @default GaugeEXP
+ * @require 1
+ * @dir img/system/
+ * @type file
  * @desc EXP ゲージ画像です。'img/system' から読み込みます。
  *
  * @param EXP gauge config
