@@ -1,6 +1,6 @@
 //=============================================================================
 // KMS_WaterMapEffect.js
-//  last update: 2016/12/23
+//  last update: 2017/01/01
 //=============================================================================
 
 /*
@@ -9,20 +9,22 @@
 
 /*:
  * @plugindesc
- * [v1.0.0] Applies water effect.
+ * [v1.1.0] Applies water effect.
  * 
  * @author TOMY (Kamesoft)
  * 
- * @param Image folder
- * @default img/system/
- * @desc Load images from this folder.
- * 
  * @param Flicker image
  * @default KMS_cloud
+ * @require 1
+ * @dir img/system/
+ * @type file
  * @desc The image which is used for flicker effect.
  *
  * @param Wave image
  * @default KMS_wave
+ * @require 1
+ * @dir img/system/
+ * @type file
  * @desc The image which is used for wave.
  *
  * @param Wave opacity
@@ -48,20 +50,22 @@
 
 /*:ja
  * @plugindesc
- * [v1.0.0] マップに水中エフェクトを適用します。
+ * [v1.1.0] マップに水中エフェクトを適用します。
  *  
  * @author TOMY (Kamesoft)
  * 
- * @param Image folder
- * @default img/system/
- * @desc 画像ファイルを読み込むフォルダです。
- * 
  * @param Flicker image
  * @default KMS_cloud
+ * @require 1
+ * @dir img/system/
+ * @type file
  * @desc 水の揺らぎを表現するための画像です。
  *
  * @param Wave image
  * @default KMS_wave
+ * @require 1
+ * @dir img/system/
+ * @type file
  * @desc 水面の波を表現するための画像です。
  *
  * @param Wave opacity
@@ -85,6 +89,8 @@
  * @help このプラグインには、プラグインコマンドはありません。
  */
 
+var KMS = KMS || {};
+
 (function()
 {
 
@@ -94,11 +100,14 @@ if (!Graphics.hasWebGL())
     return;
 }
 
+KMS.imported = KMS.imported || {};
+KMS.imported['WaterMapEffect'] = true;
+
 var PixiVersion = PIXI.DisplacementFilter ? 2 : 4;
 
 var pluginParams = PluginManager.parameters('KMS_WaterMapEffect');
 var Param = {};
-Param.imageDir  = pluginParams['Image folder'] || 'img/system/';
+Param.imageDir  = 'img/system/';
 Param.dispImage = pluginParams['Flicker image'] || 'KMS_cloud';
 Param.waveImage = pluginParams['Wave image'] || 'KMS_wave';
 Param.waveOpacity = Number(pluginParams['Wave opacity'] || 176);

@@ -1,11 +1,11 @@
 //=============================================================================
 // KMS_AbilityOrb.js
-//   Last update: 2016/07/10
+//   Last update: 2017/01/14
 //=============================================================================
 
 /*:
  * @plugindesc
- * [v0.1.0] Implements the ability orb function. (It's similar to materia system in FF7)
+ * [v0.2.0] Implements the ability orb function. (It's similar to materia system in FF7)
  *
  * @author TOMY (Kamesoft)
  *
@@ -96,10 +96,17 @@
  * @desc The button to open command window on the ability orb scene.
  *
  * @param Orb equipped SE
- * @default Sword2, 90, 150
+ * @default Sword2
+ * @require 1
+ * @dir audio/se/
+ * @type file
+ * @desc The SE for changing orb equipments.
+ *
+ * @param Orb equipped SE param
+ * @default 90, 150
  * @desc
- * Format: Filename, Volume, Pitch, Pan
- * The SE for changing orb equipments. Filename is essential.
+ * Format: Volume, Pitch, Pan
+ * Parameters for Orb equipped SE.
  *
  * @help
  *
@@ -114,7 +121,7 @@
 
 /*:ja
  * @plugindesc
- * [v0.1.0] アビリティオーブ機能を追加します。
+ * [v0.2.0] アビリティオーブ機能を追加します。
  *
  * @author TOMY (Kamesoft)
  *
@@ -211,10 +218,17 @@
  * @desc オーブ装備画面でコマンドを開くためのボタンです。
  *
  * @param Orb equipped SE
- * @default Sword2, 90, 150
+ * @default Sword2
+ * @require 1
+ * @dir audio/se/
+ * @type file
+ * @desc オーブ装備時に演奏する SE のファイル名です。 audio/se から読み込みます。
+ *
+ * @param Orb equipped SE param
+ * @default 90, 150
  * @desc
- * 書式: ファイル名, ボリューム, ピッチ, パン
- * オーブ装備時に演奏する SE です。ボリューム以降は省略できます。
+ * 書式: ボリューム, ピッチ, パン
+ * オーブ装備時に演奏する SE のパラメータです。ピッチ以降省略可。
  *
  * @help
  *
@@ -275,24 +289,40 @@ Params.buttonForReleaseOrb  = pluginParams['Release orb button'] || 'tab';
 {
     Params.orbEquippedSe = null;
 
-    var param = pluginParams['Orb equipped SE'];
-    if (!param)
+    var paramFile = pluginParams['Orb equipped SE'];
+    if (!paramFile)
     {
         return;
     }
 
-    var paramArgs = param.replace(/\s+/g, '').split(/,/);
-    if (paramArgs.length <= 0)
+    var paramFileArgs = paramFile.replace(/\s+/g, '').split(/,/);
+    if (paramFileArgs.length <= 0)
     {
         return;
     }
 
-    Params.orbEquippedSe = {
-        name: paramArgs[0],
-        volume: Number(paramArgs[1]) || 90,
-        pitch: Number(paramArgs[2]) || 100,
-        pan: Number(paramArgs[3]) || 0
-    };
+    Params.orbEquippedSe = { name: paramFileArgs[0] };
+
+    var paramArgs = { volume: 90, pitch: 100, pan: 0 };
+    var paramDetail = pluginParams['Orb equipped SE param'];
+    if (paramFileArgs.length > 1)
+    {
+        // 旧方式との互換
+        paramArgs.volume = Number(paramFileArgs[1]) || paramArgs.volume;
+        paramArgs.pitch  = Number(paramFileArgs[2]) || paramArgs.pitch;
+        paramArgs.pan    = Number(paramFileArgs[3]) || paramArgs.pan;
+    }
+    else if (paramDetail)
+    {
+        var paramDetailArgs = paramDetail.replace(/\s+/g, '').split(/,/);
+        paramArgs.volume = Number(paramDetailArgs[0]) || paramArgs.volume;
+        paramArgs.pitch  = Number(paramDetailArgs[1]) || paramArgs.pitch;
+        paramArgs.pan    = Number(paramDetailArgs[2]) || paramArgs.pan;
+    }
+
+    Params.orbEquippedSe.volume = Number(paramArgs.volume) || 90;
+    Params.orbEquippedSe.pitch  = Number(paramArgs.pitch)  || 100;
+    Params.orbEquippedSe.pan    = Number(paramArgs.pan)    || 0;
 })();
 
 // ソートコマンドの名前
