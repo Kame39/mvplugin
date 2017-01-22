@@ -1,6 +1,6 @@
 //=============================================================================
 // KMS_3DVehicle.js
-//   Last update : 2017/01/01
+//   Last update : 2017/01/21
 //=============================================================================
 
 /*
@@ -15,7 +15,7 @@
 
 /*:
  * @plugindesc
- * [v0.2.0α] Display 3D map when getting on the airplane.
+ * [v0.2.1α] Display 3D map when getting on the airplane.
  * 
  * @author TOMY (Kamesoft)
  *
@@ -58,7 +58,7 @@
 
 /*:ja
  * @plugindesc
- * [v0.2.0α] 飛空艇搭乗時のマップを 3D 化します。
+ * [v0.2.1α] 飛空艇搭乗時のマップを 3D 化します。
  * 
  * @author TOMY (Kamesoft)
  *
@@ -840,12 +840,22 @@ var snapForTileTexture = function(stage, width, height)
 {
     var bitmap = new Bitmap(width, height);
     var context = bitmap._context;
-    var renderTexture = new PIXI.RenderTexture.create(width, height);
+    var renderTexture = (PixiVersion === 2) ?
+        new PIXI.RenderTexture(width, height) :
+        PIXI.RenderTexture.create(width, height);
 
     if (stage)
     {
         consoleTimeBegin('render@snap');
-        Graphics._renderer.render(stage, renderTexture);
+        if (PixiVersion === 2)
+        {
+            renderTexture.render(stage);
+        }
+        else
+        {
+            Graphics._renderer.render(stage, renderTexture);
+        }
+
         stage.worldTransform.identity();
         consoleTimeEnd('render@snap');
     }
