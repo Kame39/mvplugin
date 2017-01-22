@@ -124,12 +124,12 @@ Param.filterMode = 0;
 KMS_WaterEffect = function()
 {
     this._speed = { x: Param.speed.x, y: Param.speed.y };
-    this._colorFilter = (PixiVersion == 2) ?
+    this._colorFilter = (PixiVersion === 2) ?
         new PIXI.ColorMatrixFilter() :
         new PIXI.filters.ColorMatrixFilter();
     if (Param.autoTone)
     {
-        if (PixiVersion == 2)
+        if (PixiVersion === 2)
         {
             this._colorFilter.matrix = [
                 0.9, 0, 0, 0,
@@ -150,7 +150,7 @@ KMS_WaterEffect = function()
         }
     }
 
-    if (PixiVersion == 4)
+    if (PixiVersion === 4)
     {
         this._dispSprite = new Sprite();
     }
@@ -196,7 +196,7 @@ KMS_WaterEffect.prototype.createEffect = function()
 
     console.assert(this.isReady());
 
-    if (PixiVersion == 2)
+    if (PixiVersion === 2)
     {
         this._dispFilter = new PIXI.DisplacementFilter(this._dispBitmap);
     }
@@ -217,7 +217,7 @@ KMS_WaterEffect.prototype.createEffect = function()
 
 KMS_WaterEffect.prototype.update = function()
 {
-    if (PixiVersion == 2)
+    if (PixiVersion === 2)
     {
         this._dispFilter.offset.x += this._speed.x;
         this._dispFilter.offset.y += this._speed.y;
@@ -304,7 +304,7 @@ Spriteset_Base.prototype.applyWaterMapEffectBody = function(target, waveContaine
 
     if (waveContainer)
     {
-        if (PixiVersion == 4)
+        if (PixiVersion === 4)
         {
             waveContainer.addChild(this._waterEffect.dispSprite);
         }
