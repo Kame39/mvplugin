@@ -1,6 +1,6 @@
 //=============================================================================
 // KMS_ScrollOffset.js
-//   Last update: 2017/01/14
+//   Last update: 2017/02/04
 //=============================================================================
 
 /*:
@@ -42,7 +42,7 @@ KMS.imported['ScrollOffset'] = true;
 
 var pluginParams = PluginManager.parameters(PluginName);
 var Params = {};
-Params.offset = Number(pluginParams['Line number'] || 2);
+Params.offset = Number(pluginParams['Line number'] || 1);
 
 
 //-----------------------------------------------------------------------------
