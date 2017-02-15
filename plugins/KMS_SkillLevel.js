@@ -1,11 +1,11 @@
 //=============================================================================
 // KMS_SkillLevel.js
-//   Last update: 2017/02/12
+//   Last update: 2017/02/15
 //=============================================================================
 
 /*:
  * @plugindesc
- * [v0.1.0] Add the level function to skills.
+ * [v0.1.1] Add the level function to skills.
  * 
  * @author TOMY (Kamesoft)
  *
@@ -37,7 +37,7 @@
 
 /*:ja
  * @plugindesc
- * [v0.1.0] スキルに熟練度の概念を追加します。
+ * [v0.1.1] スキルに熟練度の概念を追加します。
  * 
  * @author TOMY (Kamesoft)
  *
@@ -299,7 +299,12 @@ Game_Action.prototype.speed = function()
 {
     var speed = _Game_Action_speed.call(this);
 
-    return speed + this.subject().getSpeedBySkillExp(this.item());
+    if (this.item())
+    {
+        speed += this.subject().getSpeedBySkillExp(this.item());
+    }
+
+    return speed;
 };
 
 var _Game_Action_itemHit = Game_Action.prototype.itemHit;
@@ -307,7 +312,12 @@ Game_Action.prototype.itemHit = function(target)
 {
     var hit = _Game_Action_itemHit.call(this, target);
 
-    return hit * this.subject().getSuccessRateBySkillExp(this.item());
+    if (this.item())
+    {
+        hit *= this.subject().getSuccessRateBySkillExp(this.item());
+    }
+
+    return hit;
 };
 
 var _Game_Action_evalDamageFormula = Game_Action.prototype.evalDamageFormula;
@@ -441,6 +451,11 @@ Game_BattlerBase.prototype.gainSkillExpEffect = function(skill)
  */
 Game_BattlerBase.prototype.getSpeedBySkillExp = function(skill)
 {
+    if (skill == null)
+    {
+        return 0;
+    }
+
     parseNotesForSkillLevel(skill);
 
     var formula = skill.formula.speed
@@ -461,6 +476,11 @@ Game_BattlerBase.prototype.getSpeedBySkillExp = function(skill)
  */
 Game_BattlerBase.prototype.getSuccessRateBySkillExp = function(skill)
 {
+    if (skill == null)
+    {
+        return 1;
+    }
+
     parseNotesForSkillLevel(skill);
 
     var formula = skill.formula.success
