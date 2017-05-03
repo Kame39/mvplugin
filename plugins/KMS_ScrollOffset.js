@@ -1,11 +1,11 @@
 //=============================================================================
 // KMS_ScrollOffset.js
-//   Last update: 2017/02/04
+//   Last update: 2017/05/03
 //=============================================================================
 
 /*:
  * @plugindesc
- * [v0.1.0] Set the number of lines which are displayed above and below the cursor.
+ * [v0.1.1] Set the number of lines which are displayed above and below the cursor.
  * 
  * @author TOMY (Kamesoft)
  *
@@ -18,7 +18,7 @@
 
 /*:ja
  * @plugindesc
- * [v0.1.0] リストのスクロール時に、カーソル位置の上下に表示する行数を指定する機能を追加します。
+ * [v0.1.1] リストのスクロール時に、カーソル位置の上下に表示する行数を指定する機能を追加します。
  * 
  * @author TOMY (Kamesoft)
  *
@@ -51,6 +51,13 @@ Params.offset = Number(pluginParams['Line number'] || 1);
 var _Window_Selectable_ensureCursorVisible = Window_Selectable.prototype.ensureCursorVisible;
 Window_Selectable.prototype.ensureCursorVisible = function()
 {
+    // タッチ操作の場合はデフォルトの処理
+    if (this._scrollOffByTouch)
+    {
+        _Window_Selectable_ensureCursorVisible.call(this);
+        return;
+    }
+
     // 上下に表示する行数が足りない場合はデフォルトの表示方式
     if (this.maxPageRows() <= Params.offset * 2)
     {
@@ -67,6 +74,16 @@ Window_Selectable.prototype.ensureCursorVisible = function()
     {
         this.setBottomRow(Math.min(row + Params.offset, this.maxRows()));
     }
+};
+
+var _Window_Selectable_processTouch = Window_Selectable.prototype.processTouch;
+Window_Selectable.prototype.processTouch = function()
+{
+    this._scrollOffByTouch = true;
+
+    _Window_Selectable_processTouch.call(this);
+
+    delete this._scrollOffByTouch;
 };
 
 })();
