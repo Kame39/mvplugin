@@ -1,11 +1,11 @@
 //=============================================================================
 // KMS_Minimap.js
-//  last update: 2017/01/07
+//  last update: 2017/07/19
 //=============================================================================
 
 /*:
  * @plugindesc
- * [v0.1.0] Display minimap.
+ * [v0.1.1] Display minimap.
  *
  * @author TOMY (Kamesoft)
  *
@@ -48,12 +48,12 @@
  * @help
  * ## Disable minimap
  *
- * Add <NoMap> to the note field in a map, the minimap will be disabled on that map.
+ * Add <NoMinimap> to the note field in a map, the minimap will be disabled on that map.
  *
  *
  * ## Plugin command
  *
- * Minimap show     # Show minimap. If <NoMap> is specified, the minimap can't be shown.
+ * Minimap show     # Show minimap. If <NoMinimap> is specified, the minimap can't be shown.
  * Minimap hide     # Hide minimap.
  * Minimap refresh  # Redraw minimap.
  *
@@ -63,7 +63,7 @@
 
 /*:ja
  * @plugindesc
- * [v0.1.0] 画面上にミニマップを表示します。
+ * [v0.1.1] 画面上にミニマップを表示します。
  *
  * @author TOMY (Kamesoft)
  *
@@ -107,12 +107,12 @@
  * @help
  * ## ミニマップの非表示
  *
- * マップのメモ欄に <NoMap> を追加すると、そのマップではミニマップが表示されなくなります。
+ * マップのメモ欄に <NoMinimap> を追加すると、そのマップではミニマップが表示されなくなります。
  *
  *
  * ## プラグインコマンド
  *
- * Minimap show     # ミニマップを表示します。<NoMap> を指定したマップでは表示できません。
+ * Minimap show     # ミニマップを表示します。<NoMinimap> を指定したマップでは表示できません。
  * Minimap hide     # ミニマップを隠します。
  * Minimap refresh  # ミニマップを再描画します。
  *
@@ -220,7 +220,7 @@ Game_Interpreter.prototype.pluginCommand = function(command, args)
         $gameSystem.setMinimapEnabled(false);
         break;
     case 'refresh':
-        gameTemp.minimapCacheRefreshFlag = true;
+        $gameMap.refreshMinimapCache();
         break;
     default:
         // 不明なコマンド
@@ -358,15 +358,15 @@ Game_Map.prototype.setup = function(mapId)
  */
 Game_Map.prototype.setupMinimap = function()
 {
-    this._minimapEnabled = !!$dataMap.meta.NoMinimap;
+    this._minimapEnabled = !$dataMap.meta.NoMinimap;
 };
 
 /**
  * ミニマップの表示可否を取得
  */
-Game_Map.prototype.isMinimapEnable = function()
+Game_Map.prototype.isMinimapEnabled = function()
 {
-    this._minimapEnabled;
+    return this._minimapEnabled;
 };
 
 /**
@@ -790,7 +790,9 @@ Sprite_Minimap.prototype.update = function()
  */
 Sprite_Minimap.prototype.updateVisibility = function()
 {
-    this.visible = $gameSystem.isMinimapEnabled();
+    this.visible =
+        $gameSystem.isMinimapEnabled() &&
+        $gameMap.isMinimapEnabled();
 };
 
 /**
