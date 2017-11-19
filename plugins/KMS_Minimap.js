@@ -1,11 +1,11 @@
 //=============================================================================
 // KMS_Minimap.js
-//  last update: 2017/07/19
+//  last update: 2017/11/19
 //=============================================================================
 
 /*:
  * @plugindesc
- * [v0.1.1] Display minimap.
+ * [v0.1.2] Display minimap.
  *
  * @author TOMY (Kamesoft)
  *
@@ -63,7 +63,7 @@
 
 /*:ja
  * @plugindesc
- * [v0.1.1] 画面上にミニマップを表示します。
+ * [v0.1.2] 画面上にミニマップを表示します。
  *
  * @author TOMY (Kamesoft)
  *
@@ -415,8 +415,8 @@ Game_Event.prototype.setupMinimapAttribute = function()
     {
         var comment = command.parameters[0];
 
-        this._minimapAttribute.wall = Minimap.regex.wallEvent.test(comment);
-        this._minimapAttribute.move = Minimap.regex.moveEvent.test(comment);
+        this._minimapAttribute.wall |= Minimap.regex.wallEvent.test(comment);
+        this._minimapAttribute.move |= Minimap.regex.moveEvent.test(comment);
         Minimap.keysRequireNumber.forEach(function(key)
         {
             var match = Minimap.regex[key].exec(comment);
