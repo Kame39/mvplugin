@@ -5,7 +5,7 @@
 
 /*:
  * @plugindesc
- * [v0.1.0] Show messages automatically for events on map.
+ * [v0.1.1] Show messages automatically for events on map.
  * 
  * @author Kameo (Kamesoft)
  *
@@ -50,7 +50,7 @@
 
 /*:ja
  * @plugindesc
- * [v0.1.0] プレイヤーが近付いたときに、自動的にメッセージを表示するイベントを作成します。
+ * [v0.1.1] プレイヤーが近付いたときに、自動的にメッセージを表示するイベントを作成します。
  * 
  * @author かめお (Kamesoft)
  *
