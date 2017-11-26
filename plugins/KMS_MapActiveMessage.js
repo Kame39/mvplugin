@@ -567,13 +567,7 @@ Sprite_MapActiveMessageBalloon.prototype.setOwner = function(owner)
  */
 Sprite_MapActiveMessageBalloon.prototype.followOwner = function()
 {
-    if (this._owner == null)
-    {
-        return;
-    }
-
-    this.x = this._owner.x;
-    this.y = this._owner.y + this._owner.height / 2;
+    this.y = this._owner.height / 2;
 };
 
 /**
@@ -847,6 +841,14 @@ Window_MapActiveMessage.prototype.constructor = Window_MapActiveMessage;
 // メッセージの一時描画バッファ
 Window_MapActiveMessage.tempMessageBuffer = null;
 
+/**
+ * アクティブメッセージ用スキンの事前読み込み
+ */
+Window_MapActiveMessage.preloadWindowskin = function()
+{
+    ImageManager.loadSystem(Params.messageSkin);
+};
+
 Window_MapActiveMessage.prototype.initialize = function()
 {
     // コンテンツサイズは内容に応じて可変なので、ウィンドウサイズは仮
@@ -950,6 +952,9 @@ Window_MapActiveMessage.prototype.setBalloonSprite = function(sprite)
 {
     sprite.setOwner(this);
     this._balloonSprite = sprite;
+
+    // ウィンドウの裏に表示
+    this.addChildAt(sprite, 0);
 };
 
 /**
@@ -1251,6 +1256,7 @@ Window_MapActiveMessage.prototype.update = function()
     // 表示が終了したら初期化
     if (!this.isDisplaying())
     {
+        debuglog('[MapActiveMessage] Finished to display');
         this.initMembers();
     }
 };
@@ -1351,25 +1357,28 @@ Scene_Map.prototype.createAllWindows = function()
 {
     _Scene_Map_createAllWindows.call(this);
 
-    this.createActiveMessageWindows();
+    this.createActiveMessageWindow();
 };
 
 /**
  * アクティブメッセージウィンドウの作成
  */
-Scene_Map.prototype.createActiveMessageWindows = function()
+Scene_Map.prototype.createActiveMessageWindow = function()
 {
-    this._activeMessageWindows = [];
-    for (var i = 0; i < Params.messageCountMax; i++)
+    if (this._activeMessageWindowLayer != null)
     {
-        var balloon = new Sprite_MapActiveMessageBalloon();
-        this.addChild(balloon);
-
-        var windowObj = new Window_MapActiveMessage();
-        windowObj.setBalloonSprite(balloon);
-        this._activeMessageWindows[i] = windowObj;
-        this.addChild(windowObj);
+        return;
     }
+
+    var width  = Graphics.boxWidth;
+    var height = Graphics.boxHeight;
+    var x = (Graphics.width  - width)  / 2;
+    var y = (Graphics.height - height) / 2;
+    this._activeMessageWindowLayer = new WindowLayer();
+    this._activeMessageWindowLayer.move(x, y, width, height);
+    this.addChild(this._activeMessageWindowLayer);
+
+    Window_MapActiveMessage.preloadWindowskin();
 };
 
 var _Scene_Map_update = Scene_Map.prototype.update;
@@ -1401,11 +1410,9 @@ Scene_Map.prototype.terminate = function()
  */
 Scene_Map.prototype.destroyActiveMessageWindows = function()
 {
-    for (var i = 0; i < Params.messageCountMax; i++)
-    {
-        this.removeChild(this._activeMessageWindows[i]);
-    }
-    this._activeMessageWindows.length = 0;
+    this._activeMessageWindowLayer.removeChildren();
+    this.removeChild(this._activeMessageWindowLayer);
+    this._activeMessageWindowLayer = null;
 };
 
 /**
@@ -1419,12 +1426,21 @@ Scene_Map.prototype.updateActiveMessageDisplay = function()
         // メッセージを表示できないときは非表示にしつつ各種フラグを解除
         $gameTemp.clearMapActiveMessage();
         $gameMap.clearActiveMessageShownFlags();
-        this._activeMessageWindows.forEach(function(window)
+        this._activeMessageWindowLayer.children.forEach(function(child)
         {
-            window.fadeOut();
+            child.fadeOut();
         });
         return;
     }
+
+    // 表示が完了したものを削除
+    this._activeMessageWindowLayer.children.filter(function(child)
+    {
+        return !child.isDisplaying();
+    }).forEach(function(item)
+    {
+        this._activeMessageWindowLayer.removeChild(item);
+    }, this);
 
     // 要求されているメッセージを表示できるだけ表示
     while ($gameTemp.isMapActiveMessageReady())
@@ -1441,9 +1457,10 @@ Scene_Map.prototype.updateActiveMessageDisplay = function()
  */
 Scene_Map.prototype.isActiveMessageDisplayed = function(event)
 {
-    for (var i = 0; i < this._activeMessageWindows.length; i++)
+    var layer = this._activeMessageWindowLayer;
+    for (var i = 0; i < layer.children.length; i++)
     {
-        var window = this._activeMessageWindows[i];
+        var window = layer.children[i];
         if (window.isDisplaying() && window.isSameEvent(event))
         {
             return true;
@@ -1458,27 +1475,19 @@ Scene_Map.prototype.isActiveMessageDisplayed = function(event)
  */
 Scene_Map.prototype.displayActiveMessage = function()
 {
-    // 非表示なウィンドウを探す
-    var readyWindows = this._activeMessageWindows.filter(function(window)
-    {
-        return !window.isDisplaying();
-    }, this);
+    var layer = this._activeMessageWindowLayer;
 
-    // 全ウィンドウ使用済みなら表示を諦める
-    if (readyWindows.length <= 0)
+    // 最大数に達していたら表示を諦める
+    // (children には吹き出しも含まれるので / 2)
+    if (layer.children.length / 2 >= Params.messageCountMax)
     {
         return false;
     }
 
     // 予約されているメッセージを表示
-    for (var i = 0; i < readyWindows.length; i++)
+    var message = $gameTemp.popNextMapActiveMessage();
+    while (message != null)
     {
-        var message = $gameTemp.popNextMapActiveMessage();
-        if (message == null)
-        {
-            break;
-        }
-
         // 既に表示済みのものは再表示しない
         if (this.isActiveMessageDisplayed(message.event))
         {
@@ -1486,14 +1495,38 @@ Scene_Map.prototype.displayActiveMessage = function()
         }
 
         var character = this._spriteset.findCharacterSpriteByEvent(message.event);
-        readyWindows[i].display(
+        var balloon   = new Sprite_MapActiveMessageBalloon();
+        var window    = new Window_MapActiveMessage();
+        window.setBalloonSprite(balloon);
+        window.display(
             message.text,
             message.event,
             character,
             message.isForced);
+        layer.addChild(window);
+
+        message = $gameTemp.popNextMapActiveMessage();
     }
 
     return true;
+};
+
+var _Scene_Map_snapForBattleBackground = Scene_Map.prototype.snapForBattleBackground;
+Scene_Map.prototype.snapForBattleBackground = function()
+{
+    // アクティブメッセージはキャプチャしない
+    var layer = this._activeMessageWindowLayer;
+    if (layer != null)
+    {
+        layer.visible = false;
+    }
+
+    _Scene_Map_snapForBattleBackground.call(this);
+
+    if (layer != null)
+    {
+        layer.visible = true;
+    }
 };
 
 })();
