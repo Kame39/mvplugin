@@ -1,11 +1,11 @@
 //=============================================================================
 // KMS_MapActiveMessage.js
-//   Last update: 2017/11/26
+//   Last update: 2018/01/01
 //=============================================================================
 
 /*:
  * @plugindesc
- * [v0.1.1] Show messages automatically for events on map.
+ * [v0.1.2] Show messages automatically for events on map.
  * 
  * @author Kameo (Kamesoft)
  *
@@ -50,7 +50,7 @@
 
 /*:ja
  * @plugindesc
- * [v0.1.1] プレイヤーが近付いたときに、自動的にメッセージを表示するイベントを作成します。
+ * [v0.1.2] プレイヤーが近付いたときに、自動的にメッセージを表示するイベントを作成します。
  * 
  * @author かめお (Kamesoft)
  *
@@ -1488,22 +1488,20 @@ Scene_Map.prototype.displayActiveMessage = function()
     var message = $gameTemp.popNextMapActiveMessage();
     while (message != null)
     {
-        // 既に表示済みのものは再表示しない
-        if (this.isActiveMessageDisplayed(message.event))
+        // まだ表示していないもののみ表示
+        if (!this.isActiveMessageDisplayed(message.event))
         {
-            continue;
+            var character = this._spriteset.findCharacterSpriteByEvent(message.event);
+            var balloon   = new Sprite_MapActiveMessageBalloon();
+            var window    = new Window_MapActiveMessage();
+            window.setBalloonSprite(balloon);
+            window.display(
+                message.text,
+                message.event,
+                character,
+                message.isForced);
+            layer.addChild(window);
         }
-
-        var character = this._spriteset.findCharacterSpriteByEvent(message.event);
-        var balloon   = new Sprite_MapActiveMessageBalloon();
-        var window    = new Window_MapActiveMessage();
-        window.setBalloonSprite(balloon);
-        window.display(
-            message.text,
-            message.event,
-            character,
-            message.isForced);
-        layer.addChild(window);
 
         message = $gameTemp.popNextMapActiveMessage();
     }
