@@ -1,13 +1,13 @@
 //=============================================================================
 // KMS_FlexibleScope.js
-//   Last update: 2016/07/09
+//   Last update: 2018/01/01
 //=============================================================================
 
 /*:
  * @plugindesc
- * [v0.1.1] The function which is switching targets of item/skill single and all.
+ * [v0.2.0] The function which is switching targets of item/skill single and all.
  *
- * @author TOMY (Kamesoft)
+ * @author Kameo (Kamesoft)
  *
  * @param Switch for-all button
  * @default shift
@@ -27,13 +27,15 @@
  * Then, it can be switched its scope single and all.
  *
  * Add <kms_prevent_flexible_scope>, it prevents the flexible scope effect given by other factors.
+ *
+ * Add <kms_for_all_animation_id: n>, use animation ID:n instead of the original animation when target is for-all.
  */
 
 /*:ja
  * @plugindesc
- * [v0.1.1] スキル、アイテムに単体 / 全体切り替え機能を追加します。
+ * [v0.2.0] スキル、アイテムに単体 / 全体切り替え機能を追加します。
  *
- * @author TOMY (Kamesoft)
+ * @author かめお (Kamesoft)
  *
  * @param Switch for-all button
  * @default shift
@@ -51,6 +53,7 @@
  *
  * 対象が単体のスキルメモ欄に <kms_flexible_scope> を追加すると、対象の単体 / 全体切り替えが可能になります。
  * <kms_prevent_flexible_scope> を追加すると、別の要因によって付与される全体化を受け付けなくなります。
+ * <kms_for_all_animation_id: n> を追加すると、全体化時にアニメーションが n 番に差し替えられます。
  *
  */
 
@@ -88,14 +91,22 @@ function isPreventFlexibleScope(item)
     return item && item.meta.kms_prevent_flexible_scope;
 }
 
+/**
+ * 全体化時のアニメーション
+ */
+function getAnimationIdForAll(item)
+{
+    return (item ? parseInt(item.meta.kms_for_all_animation_id) : null);
+}
+
 
 //-----------------------------------------------------------------------------
 // Game_Action
 
-var _KMS_Game_Action_initialize = Game_Action.prototype.initialize;
+var _Game_Action_initialize = Game_Action.prototype.initialize;
 Game_Action.prototype.initialize = function(subject, forcing)
 {
-    _KMS_Game_Action_initialize.call(this, subject, forcing);
+    _Game_Action_initialize.call(this, subject, forcing);
 
     if (subject.isNextActionForceForAll())
     {
@@ -104,43 +115,43 @@ Game_Action.prototype.initialize = function(subject, forcing)
     }
 };
 
-var _KMS_Game_Action_setSkill = Game_Action.prototype.setSkill;
+var _Game_Action_setSkill = Game_Action.prototype.setSkill;
 Game_Action.prototype.setSkill = function(skillId)
 {
-    _KMS_Game_Action_setSkill.call(this, skillId);
+    _Game_Action_setSkill.call(this, skillId);
     this.resetForceForAll();
 };
 
-var _KMS_Game_Action_setItem = Game_Action.prototype.setItem;
+var _Game_Action_setItem = Game_Action.prototype.setItem;
 Game_Action.prototype.setItem = function(itemId)
 {
-    _KMS_Game_Action_setItem.call(this, itemId);
+    _Game_Action_setItem.call(this, itemId);
     this.resetForceForAll();
 };
 
-var _KMS_Game_Action_setItemObject = Game_Action.prototype.setItemObject;
+var _Game_Action_setItemObject = Game_Action.prototype.setItemObject;
 Game_Action.prototype.setItemObject = function(object)
 {
-    _KMS_Game_Action_setItemObject.call(this, object);
+    _Game_Action_setItemObject.call(this, object);
     this.resetForceForAll();
 };
 
-var _KMS_Game_Action_isForOne = Game_Action.prototype.isForOne;
+var _Game_Action_isForOne = Game_Action.prototype.isForOne;
 Game_Action.prototype.isForOne = function()
 {
-    return _KMS_Game_Action_isForOne.call(this) && !this.isForceForAll();
+    return _Game_Action_isForOne.call(this) && !this.isForceForAll();
 };
 
-var _KMS_Game_Action_isForAll = Game_Action.prototype.isForAll;
+var _Game_Action_isForAll = Game_Action.prototype.isForAll;
 Game_Action.prototype.isForAll = function()
 {
-    return _KMS_Game_Action_isForAll.call(this) || this.isForceForAll();
+    return _Game_Action_isForAll.call(this) || this.isForceForAll();
 };
 
-var _KMS_Game_Action_evalDamageFormula = Game_Action.prototype.evalDamageFormula ;
+var _Game_Action_evalDamageFormula = Game_Action.prototype.evalDamageFormula ;
 Game_Action.prototype.evalDamageFormula = function(target)
 {
-    var value = _KMS_Game_Action_evalDamageFormula.call(this, target);
+    var value = _Game_Action_evalDamageFormula.call(this, target);
 
     // 全体化時の威力変動
     //  XXX: makeDamageValue 内で補正すると分散適用後の値を補正してしまうので、
@@ -395,6 +406,31 @@ Window_MenuActor.prototype.setAction = function(action)
 
 
 //-----------------------------------------------------------------------------
+// Window_BattleLog
+
+var _Window_BattleLog_startAction = Window_BattleLog.prototype.startAction;
+Window_BattleLog.prototype.startAction = function(subject, action, targets)
+{
+    var item       = action.item();
+    var originalId = item.animationId;
+
+    if (action.isForceForAll())
+    {
+        var idForAll = getAnimationIdForAll(item);
+        if (idForAll)
+        {
+            // 全体化用の戦闘アニメが存在したら差し替える
+            item.animationId = idForAll;
+        }
+    }
+
+    _Window_BattleLog_startAction.call(this, subject, action, targets);
+
+    item.animationId = originalId;
+};
+
+
+//-----------------------------------------------------------------------------
 // Window_BattleActor
 
 var _KMS_Window_BattleActor_processCursorMove = Window_BattleActor.prototype.processCursorMove;
@@ -459,7 +495,7 @@ Window_BattleEnemy.prototype.setAction = function(action)
 //-----------------------------------------------------------------------------
 // Scene_ItemBase
 
-var _KMS_Scene_ItemBase_determineItem = Scene_ItemBase.prototype.determineItem;
+var _Scene_ItemBase_determineItem = Scene_ItemBase.prototype.determineItem;
 Scene_ItemBase.prototype.determineItem = function()
 {
     // 全体化可否判定のためにアクションを準備
@@ -468,16 +504,16 @@ Scene_ItemBase.prototype.determineItem = function()
     action.setItemObject(item);
     this._actorWindow.setAction(action);
 
-    _KMS_Scene_ItemBase_determineItem.call(this);
+    _Scene_ItemBase_determineItem.call(this);
 };
 
-var _KMS_Scene_ItemBase_onActorOk = Scene_ItemBase.prototype.onActorOk;
+var _Scene_ItemBase_onActorOk = Scene_ItemBase.prototype.onActorOk;
 Scene_ItemBase.prototype.onActorOk = function()
 {
     // 次の行動の強制全体化設定
     this.user().setNextActionForceForAll(this._actorWindow.cursorAll());
 
-    _KMS_Scene_ItemBase_onActorOk.call(this);
+    _Scene_ItemBase_onActorOk.call(this);
 
     this.user().setNextActionForceForAll(false);
 };
@@ -486,27 +522,27 @@ Scene_ItemBase.prototype.onActorOk = function()
 //-----------------------------------------------------------------------------
 // Scene_Battle
 
-var _KMS_Scene_Battle_selectActorSelection = Scene_Battle.prototype.selectActorSelection;
+var _Scene_Battle_selectActorSelection = Scene_Battle.prototype.selectActorSelection;
 Scene_Battle.prototype.selectActorSelection = function()
 {
     var action = BattleManager.inputtingAction();
     this._actorWindow.setAction(action);
     this._actorWindow.playOkSound = function() { }
 
-    _KMS_Scene_Battle_selectActorSelection.call(this);
+    _Scene_Battle_selectActorSelection.call(this);
 };
 
-var _KMS_Scene_Battle_selectEnemySelection = Scene_Battle.prototype.selectEnemySelection;
+var _Scene_Battle_selectEnemySelection = Scene_Battle.prototype.selectEnemySelection;
 Scene_Battle.prototype.selectEnemySelection = function()
 {
     var action = BattleManager.inputtingAction();
     this._enemyWindow.setAction(action);
     this._enemyWindow.playOkSound = function() { }
 
-    _KMS_Scene_Battle_selectEnemySelection.call(this);
+    _Scene_Battle_selectEnemySelection.call(this);
 };
 
-var _KMS_Scene_Battle_onActorOk = Scene_Battle.prototype.onActorOk;
+var _Scene_Battle_onActorOk = Scene_Battle.prototype.onActorOk;
 Scene_Battle.prototype.onActorOk = function()
 {
     if (!this.checkForceTargetForAll(this._actorWindow))
@@ -517,10 +553,10 @@ Scene_Battle.prototype.onActorOk = function()
     // ウィンドウの OK サウンドを消しているので鳴らす
     SoundManager.playOk();
 
-    _KMS_Scene_Battle_onActorOk.call(this);
+    _Scene_Battle_onActorOk.call(this);
 };
 
-var _KMS_Scene_Battle_onEnemyOk = Scene_Battle.prototype.onEnemyOk;
+var _Scene_Battle_onEnemyOk = Scene_Battle.prototype.onEnemyOk;
 Scene_Battle.prototype.onEnemyOk = function()
 {
     if (!this.checkForceTargetForAll(this._enemyWindow))
@@ -529,7 +565,7 @@ Scene_Battle.prototype.onEnemyOk = function()
     }
     SoundManager.playOk();
 
-    _KMS_Scene_Battle_onEnemyOk.call(this);
+    _Scene_Battle_onEnemyOk.call(this);
 };
 
 /**
