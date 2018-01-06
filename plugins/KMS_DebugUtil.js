@@ -1,11 +1,11 @@
 //=============================================================================
 // KMS_DebugUtil.js
-//   Last update: 2018/01/01
+//   Last update: 2018/01/06
 //=============================================================================
 
 /*:
  * @plugindesc
- * [v0.1.0] Improve debug functions.
+ * [v0.1.1] Improve debug functions.
  * 
  * @author Kameo (Kamesoft)
  *
@@ -45,7 +45,7 @@
 
 /*:ja
  * @plugindesc
- * [v0.1.0] 標準のデバッグ画面を差し替え、様々な機能を追加します。
+ * [v0.1.1] 標準のデバッグ画面を差し替え、様々な機能を追加します。
  * 
  * @author かめお (Kamesoft)
  *
@@ -1036,9 +1036,9 @@ Sprite_DebugMapDestination.prototype.initialize = function()
 {
     Sprite_Destination.prototype.initialize.call(this);
 
-    this._map          = null;
-    this._destinationX = 0;
-    this._destinationY = 0;
+    this._map         = null;
+    this._destination = new Point();
+    this._visibleArea = new Rectangle();
 };
 
 /**
@@ -1054,18 +1054,30 @@ Sprite_DebugMapDestination.prototype.setMap = function(map)
  */
 Sprite_DebugMapDestination.prototype.setDestination = function(x, y)
 {
-    this._destinationX = x;
-    this._destinationY = y;
+    this._destination.x = x;
+    this._destination.y = y;
+};
+
+/**
+ * 可視領域を設定
+ */
+Sprite_DebugMapDestination.prototype.setVisibleArea = function(x, y, width, height)
+{
+    this._visibleArea.x      = x;
+    this._visibleArea.y      = y;
+    this._visibleArea.width  = width;
+    this._visibleArea.height = height;
 };
 
 Sprite_DebugMapDestination.prototype.update = function()
 {
+    // 判定自体を書き直すので、Sprite の方を呼ぶ
     Sprite.prototype.update.call(this);
 
     if (this.visible)
     {
-        this.updatePosition();
         this.updateAnimation();
+        this.updatePosition();
     }
     else
     {
@@ -1082,8 +1094,17 @@ Sprite_DebugMapDestination.prototype.updatePosition = function()
 
     var tileWidth  = this._map.tileWidth();
     var tileHeight = this._map.tileHeight();
-    this.x = (this._map.adjustX(this._destinationX) + 0.5) * tileWidth;
-    this.y = (this._map.adjustY(this._destinationY) + 0.5) * tileHeight;
+    this.x = (this._map.adjustX(this._destination.x) + 0.5) * tileWidth;
+    this.y = (this._map.adjustY(this._destination.y) + 0.5) * tileHeight;
+
+    // 可視領域外に出た場合は消す
+    if (this.x < this._visibleArea.x ||
+        this.y < this._visibleArea.y ||
+        this.x > this._visibleArea.width ||
+        this.y > this._visibleArea.height)
+    {
+        this.opacity = 0;
+    }
 };
 
 
@@ -2562,6 +2583,28 @@ Window_DebugMapTile.prototype.select = function(index)
     this.updateDestinationPosition();
 };
 
+/**
+ * 左スクロール
+ */
+Window_DebugMapTile.prototype.scrollLeft = function()
+{
+    if (this.leftCol() > 0)
+    {
+        this.setLeftCol(this.leftCol() - 1);
+    }
+};
+
+/**
+ * 右スクロール
+ */
+Window_DebugMapTile.prototype.scrollRight = function()
+{
+    if (this.leftCol() + 1 < this.maxCols())
+    {
+        this.setLeftCol(this.leftCol() + 1);
+    }
+};
+
 Window_DebugMapTile.prototype.updateArrows = function()
 {
     Window_Selectable.prototype.updateArrows.call(this);
@@ -2571,6 +2614,24 @@ Window_DebugMapTile.prototype.updateArrows = function()
     var maxLeftCol = this.maxLeftCol();
     this._rightArrowSprite.visible = maxLeftCol > 0 && leftCol < maxLeftCol;
     this._leftArrowSprite.visible  = leftCol > 0;
+};
+
+Window_DebugMapTile.prototype.processWheel = function()
+{
+    Window_Selectable.prototype.processWheel.call(this);
+
+    if (this.isOpenAndActive())
+    {
+        var threshold = 20;
+        if (TouchInput.wheelX >= threshold)
+        {
+            this.scrollRight();
+        }
+        if (TouchInput.wheelX <= -threshold)
+        {
+            this.scrollLeft();
+        }
+    }
 };
 
 Window_DebugMapTile.prototype.onTouch = function(triggered)
@@ -2614,11 +2675,13 @@ Window_DebugMapTile.prototype.hitTest = function(x, y)
 
     var cx = x - this.padding;
     var cy = y - this.padding;
-    var topIndex = this.topIndex();
+    var maxCols     = this.maxCols();
+    var maxPageCols = this.maxPageCols();
+    var topIndex    = this.leftCol() + this.topRow() * maxCols;
     for (var i = 0; i < this.maxPageItems(); i++)
     {
-        var topOffset = Math.floor(i / this.maxPageCols()) * this.maxCols();
-        var index = topIndex + topOffset + i % this.maxPageCols();
+        var topOffset = Math.floor(i / maxPageCols) * maxCols;
+        var index = topIndex + topOffset + i % maxPageCols;
         if (index < this.maxItems())
         {
             var rect = this.itemRect(index);
@@ -2903,6 +2966,8 @@ Window_DebugMapTile.prototype.createTilemap = function()
     this._tilemap.width  = size.width;
     this._tilemap.height = size.height;
 
+    this._destinationSprite.setVisibleArea(0, 0, size.width, size.height);
+
     // PIXI.js が v4 なら mask が正常に動くので、はみ出た部分を除外
     if (Const.pixiVersion >= 4)
     {
@@ -3028,6 +3093,14 @@ Window_DebugMapTile.prototype.updateDestinationPosition = function()
         cursor.x - this.leftCol(),
         cursor.y - this.topRow()
     );
+};
+
+Window_DebugMapTile.prototype.refresh = function()
+{
+    Window_Selectable.prototype.refresh.call(this);
+
+    this.updateTilemap();
+    this.updateDestinationPosition();
 };
 
 
@@ -4574,6 +4647,7 @@ Scene_Debug.prototype.onItemOk = function()
     var number = $gameParty.numItems(item);
     var digits = $gameParty.maxItems(item).toString().length;
     this._numberWindow.setCaption(item);
+    this._numberWindow.setAllowNegative(false);
     this._numberWindow.start(number, digits, this.onItemNumberOk.bind(this));
 };
 
