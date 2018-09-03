@@ -1,25 +1,25 @@
 //=============================================================================
 // KMS_NonAntiAliasedText.js
-//   Last update: 2018/09/02
+//   Last update: 2018/09/03
 //=============================================================================
 
 /*:
  * @plugindesc
- * [v0.1.0α] Add a function to draw text without anti-aliasing.
+ * [v0.1.1α] Add a function to draw text without anti-aliasing.
  * 
  * @author Kameo (Kamesoft)
  *
  * @param Default draw method
  * @default 1
- * @desc Specify default drawing method.
+ * @desc Specify the default drawing method as integer between 0-2.
  *
  * @param Binarize threshold
  * @default 128
- * @desc Specify the threshold between 1-255 for removing anti-alias.
+ * @desc Specify the threshold as integer between 1-255 for removing anti-alias.
  *
  * @param Base font size
  * @default 18
- * @desc Specify the base font size which used by draw method 1 and 2.
+ * @desc Specify the base font size which is used by draw method 1 and 2.
  *
  * @param Enable force non-AA
  * @default 0
@@ -39,13 +39,13 @@
 
 /*:ja
  * @plugindesc
- * [v0.1.0α] アンチエイリアス効果を除去してテキストを描画する機能を追加します。
+ * [v0.1.1α] アンチエイリアス効果を除去してテキストを描画する機能を追加します。
  * 
  * @author かめお (Kamesoft)
  *
  * @param Default draw method
  * @default 1
- * @desc デフォルトの描画方式を指定します。
+ * @desc デフォルトの描画方式を 0 ～ 2 の整数で指定します。
  *
  * @param Binarize threshold
  * @default 128
@@ -68,6 +68,12 @@
  * Enable force non-AA が 1 のときのみ有効です。
  *
  * @help
+ *
+ * ■ 設定
+ *
+ * 使用するフォントに合わせて「Default draw method」「Binarize threshold」「Base font size」を調整してください。
+ *
+ * すべてのテキストからアンチエイリアスを除去するには、「Enable force non-AA」 を 1 にしてください。
  *
  * ■ プラグインコマンド
  *
@@ -345,6 +351,21 @@ function transferTempToDest(destContext, tempCanvas, x, y, width, height, config
 }
 
 /*
+ * フォント描画後のコンテキスト後始末
+ */
+function cleanupNaaFontContext(isForceRefresh)
+{
+    this._context.restore();
+    var fontContext = Bitmap.kmsNonAntiAliasFontCanvas.getContext('2d');
+    fontContext.restore();
+
+    if (isForceRefresh || Const.debug)
+    {
+        this._setDirty();
+    }
+}
+
+/*
  * 一時描画のための情報を生成
  */
 Bitmap.prototype._createNaTextConfig = function(maxWidth, lineHeight)
@@ -358,8 +379,8 @@ Bitmap.prototype._createNaTextConfig = function(maxWidth, lineHeight)
         baseFontSize: Math.floor(Params.baseFontSize / Math.max(realBaseScale, 1))
     };
 
-    config.baseMaxWidth     = Math.round(maxWidth * config.baseScale);
-    config.baseLineHeight   = Math.round(lineHeight * config.baseScale);
+    config.baseMaxWidth     = Math.max(Math.round(maxWidth * config.baseScale), 1);
+    config.baseLineHeight   = Math.max(Math.round(lineHeight * config.baseScale), 1);
     config.bufferLineOffset = Math.max(lineHeight, config.baseLineHeight);
     config.tx               = Math.floor(this.outlineWidth / 2);
     config.ty               = Math.round(config.baseLineHeight - (config.baseLineHeight - config.baseFontSize * 0.7) / 2);
@@ -479,12 +500,16 @@ Bitmap.prototype.drawTextNaa0 = function(text, x, y, maxWidth, lineHeight, align
     fontContext.globalAlpha  = 1;
 
     var metrics = fontContext.measureText(text);
+    if (metrics.width <= 0)
+    {
+        cleanupNaaFontContext.call(this);
+        return;
+    }
 
     // 二値化した枠と本体を別の領域に書く
     this._drawTextNaaOutline(fontContext, text, tx, ty, 0, maxWidth, lineHeight, metrics, 1);
     fontContext.globalAlpha = alpha;
     this._drawTextNaaBody(fontContext, text, tx, ty, bufferLineOffset, maxWidth, lineHeight, metrics);
-    fontContext.restore();
 
     var destX = x + calcDestOffsetX(maxWidth, { baseScale: 1, tx: this.outlineWidth / 2 }, metrics, align);
 
@@ -493,8 +518,7 @@ Bitmap.prototype.drawTextNaa0 = function(text, x, y, maxWidth, lineHeight, align
     context.drawImage(fontCanvas, 0, 0, maxWidth + tx, lineHeight, destX, y, maxWidth, lineHeight);
     context.drawImage(fontCanvas, 0, bufferLineOffset, maxWidth + tx, lineHeight, destX, y, maxWidth, lineHeight);
 
-    context.restore();
-    this._setDirty();
+    cleanupNaaFontContext.call(this, true);
 };
 
 /*
@@ -529,6 +553,11 @@ Bitmap.prototype.drawTextNaa1 = function(text, x, y, maxWidth, lineHeight, align
     // フォント用キャンバスに基準サイズで描画
     var fontContext = this._setupNaFontContext(config);
     var metrics = fontContext.measureText(text);
+    if (metrics.width <= 0)
+    {
+        cleanupNaaFontContext.call(this);
+        return;
+    }
 
     // 二値化した枠と本体を別の領域に書く
     this._drawTextNaaOutline(
@@ -556,9 +585,7 @@ Bitmap.prototype.drawTextNaa1 = function(text, x, y, maxWidth, lineHeight, align
 
     transferTempToDest(context, fontCanvas, x, y, maxWidth, lineHeight, config, metrics, align);
 
-    fontContext.restore();
-    context.restore();
-    this._setDirty();
+    cleanupNaaFontContext.call(this, true);
 };
 
 /*
@@ -593,6 +620,11 @@ Bitmap.prototype.drawTextNaa2 = function(text, x, y, maxWidth, lineHeight, align
     // フォント用キャンバスに基準サイズで描画
     var fontContext = this._setupNaFontContext(config);
     var metrics = fontContext.measureText(text);
+    if (metrics.width <= 0)
+    {
+        cleanupNaaFontContext.call(this);
+        return;
+    }
 
     this._context = fontContext;
     this._drawTextOutline(text, config.tx, config.ty, config.baseMaxWidth);
@@ -602,9 +634,7 @@ Bitmap.prototype.drawTextNaa2 = function(text, x, y, maxWidth, lineHeight, align
 
     transferTempToDest(context, fontCanvas, x, y, maxWidth, lineHeight, config, metrics, align);
 
-    fontContext.restore();
-    context.restore();
-    this._setDirty();
+    cleanupNaaFontContext.call(this, true);
 };
 
 Bitmap.setDefaultDrawTextNaMethod(Params.defaultMethod);
