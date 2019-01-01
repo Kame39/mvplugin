@@ -1,11 +1,11 @@
 //=============================================================================
 // KMS_Minimap.js
-//  last update: 2017/11/19
+//  last update: 2019/01/01
 //=============================================================================
 
 /*:
  * @plugindesc
- * [v0.1.2] Display minimap.
+ * [v0.2.0] Display minimap.
  *
  * @author TOMY (Kamesoft)
  *
@@ -63,7 +63,7 @@
 
 /*:ja
  * @plugindesc
- * [v0.1.2] 画面上にミニマップを表示します。
+ * [v0.2.0] 画面上にミニマップを表示します。
  *
  * @author TOMY (Kamesoft)
  *
@@ -379,6 +379,25 @@ Game_Map.prototype.refreshMinimapCache = function()
 
 
 //-----------------------------------------------------------------------------
+// Game_Character
+
+Game_Character.prototype.isMinimapAttributeDirty = function()
+{
+    // 何もしない
+};
+
+Game_Character.prototype.setMinimapAttributeDirty = function()
+{
+    // 何もしない
+};
+
+Game_Character.prototype.clearMinimapAttributeDirty = function()
+{
+    // 何もしない
+};
+
+
+//-----------------------------------------------------------------------------
 // Game_Event
 
 var _KMS_Game_Event_setupPage = Game_Event.prototype.setupPage;
@@ -394,7 +413,7 @@ Game_Event.prototype.setupPage = function()
  */
 Game_Event.prototype.setupMinimapAttribute = function()
 {
-    this._minimapAttribute = { wall: false, move: false, person: -1, object: -1 };
+    this._minimapAttribute = { dirty: true, wall: false, move: false, person: -1, object: -1 };
 
     var isComment = function(command)
     {
@@ -428,6 +447,21 @@ Game_Event.prototype.setupMinimapAttribute = function()
 
         command = commands[index++];
     }
+};
+
+Game_Event.prototype.isMinimapAttributeDirty = function()
+{
+    return this._minimapAttribute.dirty;
+};
+
+Game_Event.prototype.setMinimapAttributeDirty = function()
+{
+    this._minimapAttribute.dirty = true;
+};
+
+Game_Event.prototype.clearMinimapAttributeDirty = function()
+{
+    this._minimapAttribute.dirty = false;
 };
 
 Game_Event.prototype.isMinimapWall = function()
@@ -839,8 +873,6 @@ Sprite_Minimap.prototype.updatePassageSprite = function()
  */
 Sprite_Minimap.prototype.updateObjectSprites = function()
 {
-    var beginX = this._drawRange.begin.x;
-    var beginY = this._drawRange.begin.y;
     this._objectSprites.forEach(function(sprite)
     {
         var obj = sprite.getObject();
@@ -850,10 +882,7 @@ Sprite_Minimap.prototype.updateObjectSprites = function()
             return;
         }
 
-        var x = (obj.x - beginX - 1) * Params.gridSize;
-        var y = (obj.y - beginY - 1) * Params.gridSize;
-        sprite.x = x - this._scrollDiff.x;
-        sprite.y = y - this._scrollDiff.y;
+        sprite.updatePosition(this._drawRange.begin, this._scrollDiff);
     }, this);
 };
 
@@ -1231,9 +1260,17 @@ Sprite_MinimapIcon.prototype.initialize = function()
     this.anchor.x = 0.5;
     this.anchor.y = 0.5;
 
-    this._object         = null;
+    this._object        = null;
     this._lastIconIndex = -1;
     this._blinkDuration = 0;
+};
+
+/**
+ * 表示準備ができているか
+ */
+Sprite_MinimapIcon.prototype.isReady = function()
+{
+    return this.bitmap && this.bitmap.isReady();
 };
 
 /**
@@ -1260,10 +1297,38 @@ Sprite_MinimapIcon.prototype.setObject = function(object)
 };
 
 /**
+ * 表示位置の更新
+ *
+ * @param {Point} begin      - ミニマップの表示開始座標
+ * @param {Point} scrollDiff - 位置補正のためのマップスクロール量
+ */
+Sprite_MinimapIcon.prototype.updatePosition = function(begin, scrollDiff)
+{
+    var x = (this._object.x - begin.x - 1) * Params.gridSize;
+    var y = (this._object.y - begin.y - 1) * Params.gridSize;
+    this.x = x - scrollDiff.x;
+    this.y = y - scrollDiff.y;
+
+    if (KMS.imported['AreaEvent'])
+    {
+        // 表示サイズに応じた位置補正
+        this.x += this._iconSize * (this.scale.x - 1.0) / 2;
+        this.y += this._iconSize * (this.scale.y - 1.0) / 2;
+    }
+};
+
+/**
  * アイコン情報の更新
  */
 Sprite_MinimapIcon.prototype.updateIconInfo = function()
 {
+    if (!this.isReady())
+    {
+        this._iconSize    = null;
+        this._iconColumns = null;
+        return;
+    }
+
     this._iconSize    = Math.floor(this.bitmap.height / 3);
     this._iconColumns = Math.floor(this.bitmap.width / this._iconSize);
 };
@@ -1305,7 +1370,7 @@ Sprite_MinimapIcon.prototype.updateImage = function()
     var iconIndex = this.getCurrentIconIndex();
     if (iconIndex >= 0)
     {
-        //if (iconIndex !== this._lastIconIndex)
+        if (iconIndex !== this._lastIconIndex || this._object.isMinimapAttributeDirty())
         {
             this.setIconIndex(iconIndex);
         }
@@ -1322,7 +1387,7 @@ Sprite_MinimapIcon.prototype.updateImage = function()
  */
 Sprite_MinimapIcon.prototype.getCurrentIconIndex = function()
 {
-    if (!this._object)
+    if (!(this._object && this.isReady()))
     {
         return -1;
     }
@@ -1404,9 +1469,28 @@ Sprite_MinimapIcon.prototype.setIconIndex = function(iconIndex)
         Math.floor(iconIndex / this._iconColumns) * this._iconSize,
         this._iconSize,
         this._iconSize);
+    this.updateDisplaySize();
+
+    this._object.clearMinimapAttributeDirty();
     this._lastIconIndex = iconIndex;
     this.visible = true;
-}
+};
+
+/**
+ * オブジェクトアイコン表示サイズの更新
+ */
+Sprite_MinimapIcon.prototype.updateDisplaySize = function()
+{
+    if (!KMS.imported['AreaEvent'] ||
+        !(this._object instanceof Game_Event))
+    {
+        return;
+    }
+
+    var area = this._object.getEventTriggerArea();
+    this.scale.x = area.width;
+    this.scale.y = area.height;
+};
 
 /**
  * 明滅エフェクトの更新
@@ -1457,15 +1541,6 @@ Spriteset_Map.prototype.updateMinimap = function()
 {
     this._minimap.setWholeOpacity(255 - this._fadeSprite.opacity);
     this._minimap.update();
-};
-
-//-----------------------------------------------------------------------------
-// Scene_Map
-
-var _KMS_Scene_Map_start = Scene_Map.prototype.start;
-Scene_Map.prototype.start = function()
-{
-    _KMS_Scene_Map_start.call(this);
 };
 
 })();
