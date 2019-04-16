@@ -144,11 +144,11 @@ Params.fontSize        = Math.max(parseIntWithDefault(pluginParams['Font size'],
 var debuglog;
 if (Const.debug)
 {
-    debuglog = function() { console.log(arguments); }
+    debuglog = function() { console.log(arguments); };
 }
 else
 {
-    debuglog = function() { }
+    debuglog = function() { };
 }
 
 var _Game_Interpreter_pluginCommand = Game_Interpreter.prototype.pluginCommand;
@@ -423,7 +423,7 @@ Game_Player.prototype.findAvailableMapActiveMessageEvents = function()
     }, this);
 
     return candidateEvents;
-}
+};
 
 Game_Player.prototype.calcDistanceForMapActiveMessage = function(event)
 {
@@ -1344,8 +1344,8 @@ Window_MapActiveMessage.prototype.isEndOfText = function(textState)
  */
 Window_MapActiveMessage.prototype.needsNewPage = function(textState)
 {
-    return (!this.isEndOfText(textState) &&
-            textState.y + textState.height > this.contents.height);
+    return !this.isEndOfText(textState) &&
+            textState.y + textState.height > this.contents.height;
 };
 
 
