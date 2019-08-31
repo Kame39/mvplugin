@@ -1,11 +1,11 @@
 //=============================================================================
 // KMS_MapActiveMessage.js
-//   Last update: 2019/04/16
+//   Last update: 2019/08/31
 //=============================================================================
 
 /*:
  * @plugindesc
- * [v0.1.3] Show messages automatically for events on map.
+ * [v0.2.0] Show messages automatically for events on map.
  * 
  * @author Kameo (Kamesoft)
  *
@@ -50,7 +50,7 @@
 
 /*:ja
  * @plugindesc
- * [v0.1.3] プレイヤーが近付いたときに、自動的にメッセージを表示するイベントを作成します。
+ * [v0.2.0] プレイヤーが近付いたときに、自動的にメッセージを表示するイベントを作成します。
  * 
  * @author かめお (Kamesoft)
  *
@@ -106,6 +106,7 @@ var Const =
     pluginCode: 'MapActiveMessage', // プラグインコード
     regex: {
         activeMessage: /<(?:アクティブメッセージ|ActiveMessage)\s*[:\s]\s*([^>]+)>/i,
+        displayRange:  /<(?:アクティブメッセージ距離|ActiveMessageRange)\s*[:\s]\s*(\d+)>/i,
         beginMessage:  /<(?:アクティブメッセージ開始|BeginActiveMessage)>/i, // * 未使用
         endMessage:    /<(?:アクティブメッセージ終了|EndActiveMessage)>/i    // * 未使用
     },
@@ -405,7 +406,7 @@ Game_Player.prototype.findAvailableMapActiveMessageEvents = function()
     {
         return event.hasMapActiveMessage() &&
             !event.isMapActiveMessageShown() &&
-            this.calcDistanceForMapActiveMessage(event) <= Params.defaultRange;
+            this.calcDistanceForMapActiveMessage(event) <= event.getMapActiveMessageRange();
     }, this);
 
     // 表示済みフラグの解除判定
@@ -415,7 +416,7 @@ Game_Player.prototype.findAvailableMapActiveMessageEvents = function()
         if (event.isMapActiveMessageShown())
         {
             // メッセージ表示距離から出ていれば表示済みフラグ解除
-            if (distance > Params.defaultRange)
+            if (distance > event.getMapActiveMessageRange())
             {
                 event.setMapActiveMessageShown(false);
             }
@@ -459,6 +460,7 @@ Game_Event.prototype.pageIndex = function()
 Game_Event.prototype.setupMapActiveMessage = function()
 {
     this._mapActiveMessage        = null;
+    this._mapActiveMessageRange   = Params.defaultRange;
     this._isMapActiveMessageShown = false;
 
     // 注釈以外に達するまで解析
@@ -488,10 +490,18 @@ Game_Event.prototype.setupMapActiveMessage = function()
     }
 
     // メッセージ定義を解析
-    var match = Const.regex.activeMessage.exec(comment);
-    if (match != null)
+    var messageMatch = Const.regex.activeMessage.exec(comment);
+    if (messageMatch != null)
     {
-        this._mapActiveMessage = match[1];
+        this._mapActiveMessage = messageMatch[1];
+    }
+
+    // メッセージ距離を解析
+    var rangeMatch = Const.regex.displayRange.exec(comment);
+    if (rangeMatch != null)
+    {
+        this._mapActiveMessageRange =
+            Math.max(parseIntWithDefault(rangeMatch[1], Params.defaultRange), 1);
     }
 };
 
@@ -509,6 +519,14 @@ Game_Event.prototype.getMapActiveMessage = function()
 Game_Event.prototype.hasMapActiveMessage = function()
 {
     return this._mapActiveMessage != null;
+};
+
+/**
+ * アクティブメッセージを表示可能な範囲
+ */
+Game_Event.prototype.getMapActiveMessageRange = function()
+{
+    return this._mapActiveMessageRange;
 };
 
 /**
@@ -1228,7 +1246,7 @@ Window_MapActiveMessage.prototype.checkPlayerDistance = function()
 
     // 表示範囲外に出た場合は消す
     var distance = $gamePlayer.calcDistanceForMapActiveMessage(this._event);
-    if (distance > Params.defaultRange)
+    if (distance > this._event.getMapActiveMessageRange())
     {
         this.fadeOut();
     }
