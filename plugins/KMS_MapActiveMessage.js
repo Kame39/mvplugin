@@ -105,10 +105,11 @@ var Const =
     debug:      false,              // デバッグモード
     pluginCode: 'MapActiveMessage', // プラグインコード
     regex: {
-        activeMessage: /<(?:アクティブメッセージ|ActiveMessage)\s*[:\s]\s*([^>]+)>/i,
-        displayRange:  /<(?:アクティブメッセージ距離|ActiveMessageRange)\s*[:\s]\s*(\d+)>/i,
-        beginMessage:  /<(?:アクティブメッセージ開始|BeginActiveMessage)>/i, // * 未使用
-        endMessage:    /<(?:アクティブメッセージ終了|EndActiveMessage)>/i    // * 未使用
+        activeMessage:   /<(?:アクティブメッセージ|ActiveMessage)\s*[:\s]\s*([^>]+)>/i,
+        displayRange:    /<(?:アクティブメッセージ距離|ActiveMessageRange)\s*[:\s]\s*(\d+)>/i,
+        displayDuration: /<(?:アクティブメッセージ表示時間|ActiveMessageDuration)\s*[:\s]\s*(\d+)>/i,
+        beginMessage:    /<(?:アクティブメッセージ開始|BeginActiveMessage)>/i, // * 未使用
+        endMessage:      /<(?:アクティブメッセージ終了|EndActiveMessage)>/i    // * 未使用
     },
 
     balloonFrameInfo:  { margin: 4, size: 24, lineLength: 48, srcSize: 96 },
@@ -466,9 +467,10 @@ Game_Event.prototype.pageIndex = function()
  */
 Game_Event.prototype.setupMapActiveMessage = function()
 {
-    this._mapActiveMessage        = null;
-    this._mapActiveMessageRange   = Params.defaultRange;
-    this._isMapActiveMessageShown = false;
+    this._mapActiveMessage         = null;
+    this._mapActiveMessageRange    = Params.defaultRange;
+    this._mapActiveMessageDuration = Params.displayDuration;
+    this._isMapActiveMessageShown  = false;
 
     // 注釈以外に達するまで解析
     var page = this.page();
@@ -510,10 +512,20 @@ Game_Event.prototype.setupMapActiveMessage = function()
         this._mapActiveMessageRange =
             Math.max(parseIntWithDefault(rangeMatch[1], Params.defaultRange), 1);
     }
+
+    // メッセージ表示時間を解析
+    var durationMatch = Const.regex.displayDuration.exec(comment);
+    if (!isNullOrUndefined(durationMatch))
+    {
+        this._mapActiveMessageDuration =
+            parseIntWithDefault(durationMatch[1], Params.displayDuration);
+    }
 };
 
 /**
  * アクティブメッセージを取得
+ *
+ * @return {String} メッセージ
  */
 Game_Event.prototype.getMapActiveMessage = function()
 {
@@ -522,6 +534,8 @@ Game_Event.prototype.getMapActiveMessage = function()
 
 /**
  * アクティブメッセージが存在するか
+ *
+ * @return {Boolean} true if exists
  */
 Game_Event.prototype.hasMapActiveMessage = function()
 {
@@ -530,6 +544,8 @@ Game_Event.prototype.hasMapActiveMessage = function()
 
 /**
  * アクティブメッセージを表示可能な範囲
+ *
+ * @return {Number} タイル単位の表示範囲半径
  */
 Game_Event.prototype.getMapActiveMessageRange = function()
 {
@@ -537,7 +553,19 @@ Game_Event.prototype.getMapActiveMessageRange = function()
 };
 
 /**
+ * アクティブメッセージを表示するフレーム数
+ *
+ * @return {Number} 自動消去するまでのフレーム数
+ */
+Game_Event.prototype.getMapActiveMessageDuration = function()
+{
+    return this._mapActiveMessageDuration;
+};
+
+/**
  * アクティブメッセージを表示済みか
+ *
+ * @return {Boolean} true if shown
  */
 Game_Event.prototype.isMapActiveMessageShown = function()
 {
@@ -546,6 +574,8 @@ Game_Event.prototype.isMapActiveMessageShown = function()
 
 /**
  * アクティブメッセージ表示済みかどうかを設定
+ *
+ * @param {Boolean} shown 設定する値
  */
 Game_Event.prototype.setMapActiveMessageShown = function(shown)
 {
@@ -957,7 +987,7 @@ Window_MapActiveMessage.prototype.fadeOut = function()
     if (this.isFadingIn())
     {
         // フェードイン中は同じ不透明度からフェードアウトする
-        this._duration = Params.displayDuration - this._duration;
+        this._duration = this._initialDisplayDuration - this._duration;
     }
     else
     {
@@ -1011,7 +1041,7 @@ Window_MapActiveMessage.prototype.isForced = function()
  */
 Window_MapActiveMessage.prototype.isFadingIn = function()
 {
-    return this._duration >= Params.displayDuration - Params.fadeFrameCount;
+    return this._duration >= this._initialDisplayDuration - Params.fadeFrameCount;
 };
 
 /**
@@ -1094,10 +1124,11 @@ Window_MapActiveMessage.prototype.display = function(text, event, sprite, isForc
         index: 0,
         text:  this.convertEscapeCharacters(text)
     };
-    this._allTextWidth    = 0;
-    this._targetPageIndex = event.pageIndex();
-    this._duration        = Params.displayDuration;
-    this._isForceDisplay  = !!isForce;
+    this._allTextWidth           = 0;
+    this._targetPageIndex        = event.pageIndex();
+    this._initialDisplayDuration = event.getMapActiveMessageDuration();
+    this._duration               = this._initialDisplayDuration;
+    this._isForceDisplay         = !!isForce;
 
     this.newPage(this._textState);
     this.updatePosition();
@@ -1213,7 +1244,7 @@ Window_MapActiveMessage.prototype.updateOpacity = function()
     if (this.isFadingIn())
     {
         // フェードイン
-        opacity = 255 * (Params.displayDuration - this._duration) / Params.fadeFrameCount;
+        opacity = 255 * (this._initialDisplayDuration - this._duration) / Params.fadeFrameCount;
     }
     else if (this.isFadingOut())
     {
