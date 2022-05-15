@@ -108,8 +108,8 @@ var Const =
         activeMessage:   /<(?:アクティブメッセージ|ActiveMessage)\s*[:\s]\s*([^>]+)>/i,
         displayRange:    /<(?:アクティブメッセージ距離|ActiveMessageRange)\s*[:\s]\s*(\d+)>/i,
         displayDuration: /<(?:アクティブメッセージ表示時間|ActiveMessageDuration)\s*[:\s]\s*(\d+)>/i,
-        beginMessage:    /<(?:アクティブメッセージ開始|BeginActiveMessage)>/i, // * 未使用
-        endMessage:      /<(?:アクティブメッセージ終了|EndActiveMessage)>/i    // * 未使用
+        beginMessage:    /<(?:アクティブメッセージ|ActiveMessage)\s*[:\s][^>]+/i,
+        endMessage:      /([^>]*)>/
     },
 
     balloonFrameInfo:  { margin: 4, size: 24, lineLength: 48, srcSize: 96 },
@@ -223,9 +223,14 @@ Game_Temp.prototype.initialize = function()
 /**
  * アクティブメッセージの登録
  */
-Game_Temp.prototype.pushMapActiveMessage = function(text, targetEvent, isForced)
+Game_Temp.prototype.pushMapActiveMessages = function(targetEvent, messages, isForced)
 {
-    var message = { text: text, event: targetEvent, isForced: !!isForced };
+    var message =
+    {
+        event: targetEvent,
+        messages: messages,
+        isForced: isForced
+    };
     this._mapActiveMessages.push(message);
 };
 
@@ -342,7 +347,9 @@ Game_Map.prototype.updateDisplayActiveMessage = function()
     var events = $gamePlayer.findAvailableMapActiveMessageEvents();
     events.forEach(function(event)
     {
-        $gameTemp.pushMapActiveMessage(event.getMapActiveMessage(), event);
+        $gameTemp.pushMapActiveMessages(
+            event,
+            event.getMapActiveMessages());
     });
 };
 
@@ -353,7 +360,10 @@ Game_Map.prototype.forceDisplayActiveMessage = function(eventId)
 {
     var invoker = function(event)
     {
-        $gameTemp.pushMapActiveMessage(event.getMapActiveMessage(), event, true);
+        $gameTemp.pushMapActiveMessages(
+            event,
+            event.getMapActiveMessages(),
+            true);
     };
 
     if (isNullOrUndefined(eventId) || isNaN(eventId))
@@ -467,69 +477,135 @@ Game_Event.prototype.pageIndex = function()
  */
 Game_Event.prototype.setupMapActiveMessage = function()
 {
-    this._mapActiveMessage         = null;
-    this._mapActiveMessageRange    = Params.defaultRange;
-    this._mapActiveMessageDuration = Params.displayDuration;
-    this._isMapActiveMessageShown  = false;
+    this._mapActiveMessageList      = [];
+    this._mapActiveMessageRange     = Params.defaultRange;
+    this._mapActiveMessageDuration  = Params.displayDuration;
+    this._isMapActiveMessageShown   = false;
 
-    // 注釈以外に達するまで解析
     var page = this.page();
     if (isNullOrUndefined(page))
     {
         return;
     }
 
-    var isComment = function(command)
-    {
-        return command && (command.code === 108 || command.code === 408);
-    };
-
-    // 複数行対応のために注釈を結合
-    var index   = 0;
-    var command = page.list[index];
-    var comment = '';
-    while (isComment(command))
-    {
-        if (comment.length > 0)
-        {
-            comment += '\n';
-        }
-        comment += command.parameters[0];
-        command = page.list[++index];
-    }
-
-    // メッセージ定義を解析
-    var messageMatch = Const.regex.activeMessage.exec(comment);
-    if (!isNullOrUndefined(messageMatch))
-    {
-        this._mapActiveMessage = messageMatch[1];
-    }
+    const [mergedComment, commentUnits] = this.parseCommentForMapActiveMessage(page);
 
     // メッセージ距離を解析
-    var rangeMatch = Const.regex.displayRange.exec(comment);
+    const rangeMatch = Const.regex.displayRange.exec(mergedComment);
     if (!isNullOrUndefined(rangeMatch))
     {
         this._mapActiveMessageRange =
             Math.max(parseIntWithDefault(rangeMatch[1], Params.defaultRange), 1);
     }
 
-    // メッセージ表示時間を解析
-    var durationMatch = Const.regex.displayDuration.exec(comment);
-    if (!isNullOrUndefined(durationMatch))
-    {
-        this._mapActiveMessageDuration =
-            parseIntWithDefault(durationMatch[1], Params.displayDuration);
-    }
+    commentUnits.forEach(
+        (unit) =>
+        {
+            // メッセージ定義を解析
+            const messageMatch = Const.regex.activeMessage.exec(unit);
+            if (!isNullOrUndefined(messageMatch))
+            {
+                this._mapActiveMessageList.push(
+                    {
+                        text: messageMatch[1],
+                        duration: this._mapActiveMessageDuration
+                    });
+            }
+
+            // メッセージ表示時間を解析
+            const durationMatch = Const.regex.displayDuration.exec(unit);
+            if (!isNullOrUndefined(durationMatch))
+            {
+                const duration = parseIntWithDefault(durationMatch[1], Params.displayDuration);
+                this._mapActiveMessageDuration = duration;
+
+                // 直前のメッセージの duration を変更
+                if (this._mapActiveMessageList.length > 0)
+                {
+                    this._mapActiveMessageList[this._mapActiveMessageList.length - 1]
+                        .duration = duration;
+                }
+            }
+        }, this);
 };
+
+/**
+ * アクティブメッセージ用のコメント解析
+ *
+ * @param {Object}  page    解析対象のイベントページ
+ */
+Game_Event.prototype.parseCommentForMapActiveMessage = function(page)
+{
+    function isComment(command)
+    {
+        return command && (command.code === 108 || command.code === 408);
+    }
+
+    // 注釈以外に達するまで解析
+    var commandIndex  = 0;
+    var command       = page.list[commandIndex];
+    var mergedComment = '';  // コメントを結合した文字列
+    var commentUnit   = '';
+    var commentUnits  = [];  // 解析単位ごとに結合した文字列のリスト
+    var inMessage     = false;
+    while (isComment(command))
+    {
+        if (mergedComment.length > 0)
+        {
+            mergedComment += '\n';
+        }
+
+        var commentText = command.parameters[0];
+        mergedComment += commentText;
+
+        if (inMessage)
+        {
+            if (commentUnit.length > 0)
+            {
+                commentUnit += '\n';
+            }
+
+            commentUnit += commentText;
+
+            if (Const.regex.endMessage.test(commentText))
+            {
+                commentUnits.push(commentUnit);
+                commentUnit = '';
+                inMessage = false;
+            }
+        }
+        else
+        {
+            if (Const.regex.beginMessage.test(commentText))
+            {
+                commentUnit = commentText;
+                inMessage = true;
+            }
+            else
+            {
+                commentUnits.push(commentText);
+            }
+        }
+
+        command = page.list[++commandIndex];
+    }
+
+    if (inMessage)
+    {
+        commentUnits.push(commentUnit);
+    }
+
+    return [mergedComment, commentUnits];
+}
 
 /**
  * アクティブメッセージを取得
  *
  * @return {String} メッセージ
  */
-Game_Event.prototype.getMapActiveMessage = function()
+Game_Event.prototype.getMapActiveMessages = function()
 {
-    return this._mapActiveMessage;
+    return this._mapActiveMessageList;
 };
 
 /**
@@ -539,7 +615,7 @@ Game_Event.prototype.getMapActiveMessage = function()
  */
 Game_Event.prototype.hasMapActiveMessage = function()
 {
-    return !isNullOrUndefined(this._mapActiveMessage);
+    return this._mapActiveMessageList.length !== 0;
 };
 
 /**
@@ -943,6 +1019,7 @@ Window_MapActiveMessage.prototype.getWindowSkin = function()
 
 Window_MapActiveMessage.prototype.initMembers = function()
 {
+    this._pendingMessages = [];
     this._textState       = null;
     this._event           = null;
     this._characterSprite = null;
@@ -1090,13 +1167,16 @@ Window_MapActiveMessage.prototype.isEventInScreen = function()
 /**
  * メッセージの表示開始
  * 
- * @param {String}              text        '\n' 区切りのメッセージ
- * @param {Game_Event}          event       表示対象のイベント
+ * @param {String}              message     表示するメッセージ
  * @param {Sprite_Character}    sprite      表示対象のキャラクタースプライト
- * @param {boolean}             isForce     表示時間満了まで強制表示
  */
-Window_MapActiveMessage.prototype.display = function(text, event, sprite, isForce)
+Window_MapActiveMessage.prototype.display = function(message, sprite)
 {
+    if (isNullOrUndefined(message))
+    {
+        throw "'message' must not be null or undefined.";
+    }
+
     // 表示のキャンセル
     function rollback()
     {
@@ -1104,13 +1184,15 @@ Window_MapActiveMessage.prototype.display = function(text, event, sprite, isForc
         this.hide();
     }
 
-    if (isNullOrUndefined(text) || isNullOrUndefined(event))
+    if (message.length <= 0 || isNullOrUndefined(message.event))
     {
         rollback.call(this);
         return;
     }
 
-    this._event           = event;
+    this._pendingMessages = Array.from(message.messages);
+    this._event = message.event;
+
     this._characterSprite = sprite;
     if (!this.isEventInScreen())
     {
@@ -1118,27 +1200,42 @@ Window_MapActiveMessage.prototype.display = function(text, event, sprite, isForc
         return;
     }
 
-    // 表示パラメータの設定
+    this._targetPageIndex = this._event.pageIndex();
+    this._isForceDisplay  = message.isForce;
+
+    this.displayNextMessage();
+    this.show();
+
+    // 多重表示抑止のため、表示済みフラグを立てる
+    this._event.setMapActiveMessageShown(true);
+};
+
+/**
+ * 次のメッセージを表示
+ */
+Window_MapActiveMessage.prototype.displayNextMessage = function()
+{
+    const message = this._pendingMessages.shift();
+    if (isNullOrUndefined(message))
+    {
+        return false;
+    }
+
     this._textState =
     {
         index: 0,
-        text:  this.convertEscapeCharacters(text)
+        text:  this.convertEscapeCharacters(message.text)
     };
     this._allTextWidth           = 0;
-    this._targetPageIndex        = event.pageIndex();
-    this._initialDisplayDuration = event.getMapActiveMessageDuration();
+    this._initialDisplayDuration = message.duration;
     this._duration               = this._initialDisplayDuration;
-    this._isForceDisplay         = !!isForce;
 
     this.newPage(this._textState);
     this.updatePosition();
     this.updateOpacity();
     this.refreshBalloon();
 
-    this.show();
-
-    // 多重表示抑止のため、表示済みフラグを立てる
-    event.setMapActiveMessageShown(true);
+    return true;
 };
 
 /**
@@ -1309,11 +1406,18 @@ Window_MapActiveMessage.prototype.update = function()
     this.updatePosition();
     this.checkPlayerDistance();
 
-    // 表示が終了したら初期化
     if (!this.isDisplaying())
     {
-        debuglog('[MapActiveMessage] Finished to display');
-        this.initMembers();
+        if (this.displayNextMessage())
+        {
+            debuglog('[MapActiveMessage] Display next message.');
+        }
+        else
+        {
+            // 表示が終了したら初期化
+            debuglog('[MapActiveMessage] Finished to display.');
+            this.initMembers();
+        }
     }
 };
 
@@ -1551,11 +1655,7 @@ Scene_Map.prototype.displayActiveMessage = function()
             var balloon   = new Sprite_MapActiveMessageBalloon();
             var window    = new Window_MapActiveMessage();
             window.setBalloonSprite(balloon);
-            window.display(
-                message.text,
-                message.event,
-                character,
-                message.isForced);
+            window.display(message, character);
             layer.addChild(window);
         }
 
