@@ -108,6 +108,7 @@ var Const =
         activeMessage:   /<(?:アクティブメッセージ|ActiveMessage)\s*[:\s]\s*([^>]+)>/i,
         displayRange:    /<(?:アクティブメッセージ距離|ActiveMessageRange)\s*[:\s]\s*(\d+)>/i,
         displayDuration: /<(?:アクティブメッセージ表示時間|ActiveMessageDuration)\s*[:\s]\s*(\d+)>/i,
+        loopMessage:     /<(?:アクティブメッセージループ|ActiveMessageLoop)>/i,
         beginMessage:    /<(?:アクティブメッセージ|ActiveMessage)\s*[:\s][^>]+/i,
         endMessage:      /([^>]*)>/
     },
@@ -223,12 +224,14 @@ Game_Temp.prototype.initialize = function()
 /**
  * アクティブメッセージの登録
  */
-Game_Temp.prototype.pushMapActiveMessages = function(targetEvent, messages, isForced)
+Game_Temp.prototype.pushMapActiveMessages = function(targetEvent, messages, needsLoop, isForced)
 {
     var message =
     {
+        id: this._mapActiveMessageNextId++,
         event: targetEvent,
         messages: messages,
+        needsLoop: needsLoop,
         isForced: isForced
     };
     this._mapActiveMessages.push(message);
@@ -239,6 +242,7 @@ Game_Temp.prototype.pushMapActiveMessages = function(targetEvent, messages, isFo
  */
 Game_Temp.prototype.clearMapActiveMessage = function()
 {
+    this._mapActiveMessageNextId = 0;
     this._mapActiveMessages = [];
 };
 
@@ -349,7 +353,8 @@ Game_Map.prototype.updateDisplayActiveMessage = function()
     {
         $gameTemp.pushMapActiveMessages(
             event,
-            event.getMapActiveMessages());
+            event.getMapActiveMessages(),
+            event.needsMapActiveMessageLoop());
     });
 };
 
@@ -363,6 +368,7 @@ Game_Map.prototype.forceDisplayActiveMessage = function(eventId)
         $gameTemp.pushMapActiveMessages(
             event,
             event.getMapActiveMessages(),
+            event.needsMapActiveMessageLoop(),
             true);
     };
 
@@ -480,6 +486,7 @@ Game_Event.prototype.setupMapActiveMessage = function()
     this._mapActiveMessageList      = [];
     this._mapActiveMessageRange     = Params.defaultRange;
     this._mapActiveMessageDuration  = Params.displayDuration;
+    this._needsMapActiveMessageLoop = false;
     this._isMapActiveMessageShown   = false;
 
     var page = this.page();
@@ -496,6 +503,13 @@ Game_Event.prototype.setupMapActiveMessage = function()
     {
         this._mapActiveMessageRange =
             Math.max(parseIntWithDefault(rangeMatch[1], Params.defaultRange), 1);
+    }
+
+    // ループ設定を解析
+    const loopMatch = Const.regex.loopMessage.exec(mergedComment);
+    if (!isNullOrUndefined(loopMatch))
+    {
+        this._needsMapActiveMessageLoop = true;
     }
 
     commentUnits.forEach(
@@ -626,6 +640,16 @@ Game_Event.prototype.hasMapActiveMessage = function()
 Game_Event.prototype.getMapActiveMessageRange = function()
 {
     return this._mapActiveMessageRange;
+};
+
+/**
+ * アクティブメッセージをループするか
+ *
+ * @return {Boolean} true if needs loop
+ */
+Game_Event.prototype.needsMapActiveMessageLoop = function()
+{
+    return this._needsMapActiveMessageLoop;
 };
 
 /**
@@ -1019,13 +1043,14 @@ Window_MapActiveMessage.prototype.getWindowSkin = function()
 
 Window_MapActiveMessage.prototype.initMembers = function()
 {
+    this._message         = null;
     this._pendingMessages = [];
     this._textState       = null;
     this._event           = null;
     this._characterSprite = null;
     this._targetPageIndex = 0;
     this._duration        = 0;
-    this._isForceDisplay  = false;
+    this._isHiding        = false;
     this._balloonPosition = Const.balloonPosition.above;
 };
 
@@ -1041,7 +1066,14 @@ Window_MapActiveMessage.prototype.show = function()
 
 Window_MapActiveMessage.prototype.hide = function()
 {
+    // ロールバック処理中はメッセージ無しで呼ばれる
+    if (this._message)
+    {
+        debuglog(`[${Const.pluginCode}] ${this.getId()}: Hide`);
+    }
+
     this._duration = 0;
+    this._isHiding = true;
 
     Window_Base.prototype.hide.call(this);
 
@@ -1060,6 +1092,10 @@ Window_MapActiveMessage.prototype.fadeOut = function()
     {
         return;
     }
+
+    debuglog(`[${Const.pluginCode}] ${this.getId()}: Fading out`);
+
+    this._isHiding = true;
 
     if (this.isFadingIn())
     {
@@ -1106,11 +1142,27 @@ Window_MapActiveMessage.prototype.isDisplaying = function()
 };
 
 /**
+ * メッセージ ID を取得
+ */
+Window_MapActiveMessage.prototype.getId = function()
+{
+    return this._message.id;
+};
+
+/**
+ * ループ表示するか
+ */
+Window_MapActiveMessage.prototype.needsLoop = function()
+{
+    return this._message.needsLoop;
+};
+
+/**
  * 強制表示されたか
  */
 Window_MapActiveMessage.prototype.isForced = function()
 {
-    return this._isForceDisplay;
+    return this._message.isForced;
 };
 
 /**
@@ -1127,6 +1179,14 @@ Window_MapActiveMessage.prototype.isFadingIn = function()
 Window_MapActiveMessage.prototype.isFadingOut = function()
 {
     return this._duration < Params.fadeFrameCount;
+};
+
+/**
+ * 消去されているか
+ */
+Window_MapActiveMessage.prototype.isHiding = function ()
+{
+    return this._isHiding;
 };
 
 /**
@@ -1190,10 +1250,10 @@ Window_MapActiveMessage.prototype.display = function(message, sprite)
         return;
     }
 
-    this._pendingMessages = Array.from(message.messages);
+    this._message = message;
     this._event = message.event;
-
     this._characterSprite = sprite;
+
     if (!this.isEventInScreen())
     {
         rollback.call(this);
@@ -1201,13 +1261,24 @@ Window_MapActiveMessage.prototype.display = function(message, sprite)
     }
 
     this._targetPageIndex = this._event.pageIndex();
-    this._isForceDisplay  = message.isForce;
 
-    this.displayNextMessage();
+    this.initializeMessage();
     this.show();
+
+    debuglog(`[${Const.pluginCode}] ${this.getId()}: Display new message for event ${this._event.eventId()}.`);
 
     // 多重表示抑止のため、表示済みフラグを立てる
     this._event.setMapActiveMessageShown(true);
+};
+
+/**
+ * メッセージの初期化
+ */
+Window_MapActiveMessage.prototype.initializeMessage = function ()
+{
+    this._pendingMessages = Array.from(this._message.messages);
+
+    this.displayNextMessage();
 };
 
 /**
@@ -1368,6 +1439,24 @@ Window_MapActiveMessage.prototype.refreshBalloon = function()
 };
 
 /**
+ * プレイヤーと距離が離れていたら消去する
+ *
+ * @return {Boolean} true if hidden
+ */
+Window_MapActiveMessage.prototype.hideFarMessage = function()
+{
+    // 表示範囲外に出た場合は消す
+    var distance = $gamePlayer.calcDistanceForMapActiveMessage(this._event);
+    if (distance > this._event.getMapActiveMessageRange())
+    {
+        this.fadeOut();
+        return true;
+    }
+
+    return false;
+};
+
+/**
  * プレイヤーとの距離を確認
  */
 Window_MapActiveMessage.prototype.checkPlayerDistance = function()
@@ -1379,12 +1468,7 @@ Window_MapActiveMessage.prototype.checkPlayerDistance = function()
         return;
     }
 
-    // 表示範囲外に出た場合は消す
-    var distance = $gamePlayer.calcDistanceForMapActiveMessage(this._event);
-    if (distance > this._event.getMapActiveMessageRange())
-    {
-        this.fadeOut();
-    }
+    this.hideFarMessage();
 };
 
 Window_MapActiveMessage.prototype.update = function()
@@ -1410,12 +1494,21 @@ Window_MapActiveMessage.prototype.update = function()
     {
         if (this.displayNextMessage())
         {
-            debuglog('[MapActiveMessage] Display next message.');
+            debuglog(`[${Const.pluginCode}] ${this.getId()}: Display next message.`);
+        }
+        else if (this.needsLoop() && !this.isHiding())
+        {
+            // 距離が離れていたらループしない
+            if (!this.hideFarMessage())
+            {
+                debuglog(`[${Const.pluginCode}] ${this.getId()}: Loop message.`);
+                this.initializeMessage();
+            }
         }
         else
         {
             // 表示が終了したら初期化
-            debuglog('[MapActiveMessage] Finished to display.');
+            debuglog(`[${Const.pluginCode}] ${this.getId()}: Finished to display.`);
             this.initMembers();
         }
     }
