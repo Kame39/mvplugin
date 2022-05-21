@@ -1,11 +1,11 @@
 //=============================================================================
 // KMS_MapActiveMessage.js
-//   Last update: 2019/08/31
+//   Last update: 2022/05/21
 //=============================================================================
 
 /*:
  * @plugindesc
- * [v0.2.0] Show messages automatically for events on map.
+ * [v0.3.0] Show messages automatically for events on map.
  * 
  * @author Kameo (Kamesoft)
  *
@@ -50,7 +50,7 @@
 
 /*:ja
  * @plugindesc
- * [v0.2.0] プレイヤーが近付いたときに、自動的にメッセージを表示するイベントを作成します。
+ * [v0.3.0] プレイヤーが近付いたときに、自動的にメッセージを表示するイベントを作成します。
  * 
  * @author かめお (Kamesoft)
  *
