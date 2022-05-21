@@ -5,7 +5,7 @@
 
 /*:
  * @plugindesc
- * [v0.3.0] Show messages automatically for events on map.
+ * [v0.3.1] Show messages automatically for events on map.
  * 
  * @author Kameo (Kamesoft)
  *
@@ -50,7 +50,7 @@
 
 /*:ja
  * @plugindesc
- * [v0.3.0] プレイヤーが近付いたときに、自動的にメッセージを表示するイベントを作成します。
+ * [v0.3.1] プレイヤーが近付いたときに、自動的にメッセージを表示するイベントを作成します。
  * 
  * @author かめお (Kamesoft)
  *
@@ -109,7 +109,7 @@ var Const =
         displayRange:    /<(?:アクティブメッセージ距離|ActiveMessageRange)\s*[:\s]\s*(\d+)>/i,
         displayDuration: /<(?:アクティブメッセージ表示時間|ActiveMessageDuration)\s*[:\s]\s*(\d+)>/i,
         loopMessage:     /<(?:アクティブメッセージループ|ActiveMessageLoop)>/i,
-        beginMessage:    /<(?:アクティブメッセージ|ActiveMessage)\s*[:\s][^>]+/i,
+        beginMessage:    /<(?:アクティブメッセージ|ActiveMessage)\s*[:\s][^>]+$/i,
         endMessage:      /([^>]*)>/
     },
 
